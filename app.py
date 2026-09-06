@@ -5,7 +5,7 @@ import os
 import pandas as pd
 from fpdf import FPDF
 import tempfile
-import time  # Added for delay in success message
+import time
 
 # --- FIREBASE MODULES ---
 import firebase_admin
@@ -18,12 +18,12 @@ st.set_page_config(page_title="Superior College Okara Portal", layout="wide", pa
 # ==========================================
 # FIREBASE DATABASE CONNECTION
 # ==========================================
-FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/" 
+FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/"
 
 if not firebase_admin._apps:
     try:
-        # راز (Secret) سے چابی پڑھنا
-        key_dict = json.loads(st.secrets["firebase_secret"])
+        # Streamlit کا نیا اور 100% محفوظ طریقہ
+        key_dict = dict(st.secrets["firebase"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {
             'databaseURL': FIREBASE_URL
@@ -819,7 +819,7 @@ else:
                 rep_data = []
                 for a in [r for r in st.session_state.attendance_db if r['date'] == str(rep_date)]:
                     for roll in a.get('absent_students', []):
-                        s = next((st for st in st.session_state.students_db if str(st['roll_no'])==str(roll) and st.get('class_name')==a['class_name']), None)
+                        s = next((st for st in st.session_state.students_db if str(s['roll_no'])==str(roll) and st.get('class_name')==a['class_name']), None)
                         if s:
                             fu = next((f for f in st.session_state.followup_db if f['date']==str(rep_date) and str(f['roll_no'])==str(roll)), {})
                             inc = get_class_incharge(a['class_name'], a['course'], a['branch'], a['section'])
