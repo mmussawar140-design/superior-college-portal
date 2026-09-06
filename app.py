@@ -17,11 +17,10 @@ st.set_page_config(page_title="Superior College Okara Portal", layout="wide", pa
 # ==========================================
 # FIREBASE DATABASE CONNECTION
 # ==========================================
-FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/" 
+FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/"
 
 if not firebase_admin._apps:
     try:
-        # راز (Secret) سے چابی پڑھنا
         key_dict = json.loads(st.secrets["firebase_secret"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {
@@ -53,12 +52,17 @@ st.markdown("""
 .stSidebar { background-color: #062b2b !important; }
 
 /* Golden Headings */
-h1, h2, h3, h4 { color: #f7b731 !important; font-family: 'Arial', sans-serif; font-weight: bold !important; }
+h1, h2, h3, h4 { color: #f7b731 !important; font-family: 'Arial', sans-serif !important; font-weight: bold !important; }
 h1 { font-size: 36px !important; }
 h2 { font-size: 30px !important; }
 
-/* General Text (Safe, without overriding icons) */
-p, label { color: #e0f2f1 !important; font-size: 14px !important; font-family: 'Arial', sans-serif; }
+/* Safe Text Styling (Will not break password eye icon) */
+.stMarkdown p, .stMarkdown label, .stCheckbox label { 
+    color: #e0f2f1 !important; 
+    font-size: 14px !important; 
+    font-family: 'Arial', sans-serif !important; 
+    font-weight: bold !important; 
+}
 
 /* 3D Raised Colored Tabs */
 button[data-baseweb="tab"] {
@@ -82,7 +86,6 @@ button[data-baseweb="tab"] p {
 button[data-baseweb="tab"][aria-selected="true"] p {
     color: black !important;
 }
-/* Hide the red line under tabs */
 div[data-baseweb="tab-highlight"] { display: none !important; }
 
 /* Registration & Login Box centered */
@@ -93,6 +96,15 @@ div[data-baseweb="tab-highlight"] { display: none !important; }
     border: 2px solid #115e5e;
     box-shadow: 0px 8px 16px rgba(0,0,0,0.6);
     margin-top: 20px;
+}
+
+/* Metric Cards Styling */
+div[data-testid="metric-container"] {
+    background: linear-gradient(145deg, #115e5e, #0d4a4a) !important;
+    border-left: 6px solid #f7b731 !important;
+    padding: 15px !important;
+    border-radius: 8px !important;
+    box-shadow: 4px 4px 10px rgba(0,0,0,0.5) !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -580,6 +592,7 @@ if not st.session_state.logged_in:
             st.subheader("Login to Portal")
             msg_log = st.empty()
             
+            # Form fields
             l_user = st.text_input("Username", value=st.session_state.saved_username)
             l_pass = st.text_input("Password", type="password")
             rem = st.checkbox("Remember Me", value=bool(st.session_state.saved_username))
@@ -741,7 +754,7 @@ else:
                 rep_data = []
                 for a in [r for r in st.session_state.attendance_db if r['date'] == str(rep_date)]:
                     for roll in a.get('absent_students', []):
-                        s = next((st for st in st.session_state.students_db if str(s['roll_no'])==str(roll) and st.get('class_name')==a['class_name']), None)
+                        s = next((st for st in st.session_state.students_db if str(st['roll_no'])==str(roll) and st.get('class_name')==a['class_name']), None)
                         if s:
                             fu = next((f for f in st.session_state.followup_db if f['date']==str(rep_date) and str(f['roll_no'])==str(roll)), {})
                             inc = get_class_incharge(a['class_name'], a['course'], a['branch'], a['section'])
@@ -865,10 +878,154 @@ else:
                     att_rec = next((r for r in st.session_state.attendance_db if r['date'] == str(rep_date_t) and r.get('class_name')==c and r.get('section')==sec and r.get('branch')==br), None)
                     if att_rec:
                         for roll in att_rec.get('absent_students', []):
-                            student = next((s for s in st.session_state.students_db if str(s['roll_no'])==str(roll) and s.get('class_nameمیں نے **image_c411c3.png** دیکھ لی ہے۔ اس میں "Superior College Okara - Management System" کا ایڈمن رجسٹریشن فارم نظر آ رہا ہے، اور ایسا لگ رہا ہے کہ آپ نے "Admin Sign Up" ٹیب کے دائیں اور بائیں جانب سرخ نشانات (red lines) لگائے ہیں۔
+                            student = next((s for s in st.session_state.students_db if str(s['roll_no'])==str(roll) and s.get('class_name')==c and s.get('section')==sec), None)
+                            if student:
+                                fu = next((f for f in st.session_state.followup_db if f['date']==str(rep_date_t) and str(f['roll_no'])==str(roll)), {})
+                                rep_data_t.append({"ROLL NO": str(roll), "NAME": student['name'].upper(), "ATTENDED BY": fu.get('spoke_to', 'Pending').upper(), "REASON": fu.get('reason', 'Pending')})
+                        if rep_data_t: 
+                            df_rep = pd.DataFrame(rep_data_t)
+                            df_rep['ROLL NO'] = pd.to_numeric(df_rep['ROLL NO'], errors='coerce')
+                            df_rep = df_rep.sort_values(by='ROLL NO').reset_index(drop=True)
+                            df_rep['ROLL NO'] = df_rep['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
+                            df_rep.insert(0, 'SR. NO.', range(1, len(df_rep) + 1))
+                            df_rep.columns = df_rep.columns.str.upper()
+                            st.dataframe(df_rep, use_container_width=True)
+                        else: st.info("No absentees.")
+                    else: st.info("Attendance not marked for this date.")
+            else: st.warning("No assignments setup yet.")
+            
+        with t_prof: render_profile_setup(user)
 
-آپ کے یہ کہنے سے کہ "سب ویسا ہی ہے"، ایسا معلوم ہوتا ہے کہ آپ نے اپنی ویب ایپلیکیشن (شاید Streamlit یا کسی اور فریم ورک) کے کوڈ یا کسٹم CSS میں کوئی تبدیلی کی تھی، لیکن اس کا فرنٹ اینڈ پر کوئی اثر نہیں ہوا اور ڈیزائن کا مسئلہ ابھی بھی برقرار ہے۔ 
+    # --- CLASS INCHARGE DASHBOARD ---
+    elif user['role'] == "Class Incharge":
+        my_cls, my_crs, my_br, my_sec = user.get('incharge_class'), user.get('incharge_course'), user.get('incharge_branch'), user.get('incharge_section')
+        incharge_name = user['name']
+        
+        st.markdown(f"### 📊 Incharge Overview: {my_cls} | {my_sec} ({my_br})")
+        od1, od2 = st.columns([1, 3])
+        ov_date = od1.date_input("Select Date", date.today(), key="ov_inc")
+        my_st = [s for s in st.session_state.students_db if s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br]
+        att_r = next((r for r in st.session_state.attendance_db if r['date']==str(ov_date) and r.get('class_name')==my_cls and r.get('section')==my_sec), None)
+        
+        abs_n = len(att_r['absent_students']) if att_r else 0
+        c1, c2, c3 = st.columns(3)
+        c1.metric("TOTAL STUDENTS", len(my_st))
+        c2.metric("PRESENT", len(my_st) - abs_n if att_r else 0)
+        c3.metric("ABSENT", abs_n)
+        st.divider()
+        
+        t_reg, t_att, t_teach, t_rep, t_prof = st.tabs(["📝 Students (Add/Edit)", "📅 Attendance & Absentees", "📚 Tests & Marks", "📈 Results", "⚙️ Setup"])
+        
+        with t_reg:
+            rg1, rg2 = st.columns([1, 1])
+            with rg1:
+                st.subheader("Add New Student")
+                msg_reg = st.empty()
+                with st.form("student_registration_form", clear_on_submit=True):
+                    c_1, c_2 = st.columns(2)
+                    s_n = c_1.text_input("Student Name")
+                    s_f = c_2.text_input("Father's Name")
+                    c_3, c_4 = st.columns(2)
+                    s_r = c_3.text_input("Roll Number")
+                    s_tr = c_4.checkbox("Uses Transport")
+                    
+                    c_5, c_6 = st.columns(2)
+                    s_c1 = c_5.text_input("Contact 1", max_chars=11)
+                    s_c2 = c_6.text_input("Contact 2", max_chars=11)
+                    
+                    if st.form_submit_button("Add Student"):
+                        if s_n and s_r:
+                            st.session_state.students_db.append({"class_name": my_cls, "course": my_crs, "branch": my_br, "section": my_sec, "name": s_n, "father_name": s_f, "roll_no": s_r, "contact1": s_c1, "contact2": s_c2, "transport": "Yes" if s_tr else "No"})
+                            save_data('students_db', st.session_state.students_db)
+                            msg_reg.success(f"{s_n.upper()} Added!")
+                            st.rerun()
+                        else: msg_reg.error("Name and Roll required.")
+            
+            st.markdown("#### Edit Class Students")
+            if my_st:
+                df_my = pd.DataFrame(my_st)
+                ed_my = st.data_editor(df_my, num_rows="dynamic")
+                if st.button("Save Edits"):
+                    st.session_state.students_db = [s for s in st.session_state.students_db if not (s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br)]
+                    st.session_state.students_db.extend(ed_my.to_dict('records'))
+                    save_data('students_db', st.session_state.students_db)
+                    st.success("Changes saved!")
+                
+                df_dl = pd.DataFrame(my_st).rename(columns={'name': 'NAME', 'father_name': 'FATHER NAME', 'roll_no': 'ROLL NO', 'contact1': 'CONTACT', 'transport': 'TRANSPORT'})
+                display_dl = df_dl[['ROLL NO', 'NAME', 'FATHER NAME', 'CONTACT', 'TRANSPORT']]
+                display_dl['ROLL NO'] = pd.to_numeric(display_dl['ROLL NO'], errors='coerce')
+                display_dl = display_dl.sort_values(by='ROLL NO').reset_index(drop=True)
+                display_dl['ROLL NO'] = display_dl['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
+                display_dl.insert(0, 'SR. NO.', range(1, len(display_dl) + 1))
+                display_dl.columns = display_dl.columns.str.upper()
+                
+                c_sdl1, c_sdl2 = st.columns(2)
+                with c_sdl1: st.download_button("Download Class List (CSV)", data=generate_csv_with_header(display_dl, "REGISTERED STUDENTS LIST", date.today(), my_cls, my_sec, incharge_name), file_name=f"Students_{my_cls}_{my_sec}.csv", mime="text/csv")
+                with c_sdl2: st.download_button("Download Class List (PDF)", data=generate_pdf(display_dl, "REGISTERED STUDENTS LIST", date.today(), my_cls, my_sec, incharge_name), file_name=f"Students_{my_cls}_{my_sec}.pdf", mime="application/pdf")
 
-کیا آپ ان ٹیبس (tabs) کے درمیان فاصلہ (spacing) کم کرنے، یہ مخصوص بارڈرز ہٹانے، یا ان کی الائنمنٹ (alignment) ٹھیک کرنے کی کوشش کر رہے ہیں؟ 
-
-اگر آپ مجھے اپنا موجودہ متعلقہ کوڈ یا CSS دکھا دیں، تو ہم مل کر اس مسئلے کو حل کر سکتے ہیں۔ کیا آپ بتا سکتے ہیں کہ آپ اصل میں اس ٹیب کو کیسا دکھانا چاہ رہے تھے؟
+        with t_att:
+            at1, at2 = st.columns([1, 1])
+            with at1:
+                st.subheader("Mark Daily Attendance")
+                msg_att = st.empty()
+                att_d = st.date_input("Attendance Date", date.today())
+                if my_st:
+                    my_st_sorted = sorted(my_st, key=lambda x: str(x['roll_no']))
+                    with st.form("att_f"):
+                        abs_rolls = []
+                        for s in my_st_sorted:
+                            if st.checkbox(f"{s['roll_no']} - {s['name'].upper()}", key=f"att_{s['roll_no']}"): abs_rolls.append(s['roll_no'])
+                        if st.form_submit_button("Save Attendance", use_container_width=True):
+                            st.session_state.attendance_db.append({"date": str(att_d), "class_name": my_cls, "course": my_crs, "section": my_sec, "branch": my_br, "absent_students": abs_rolls})
+                            save_data('attendance_db', st.session_state.attendance_db)
+                            msg_att.success("Attendance saved successfully!")
+                            st.rerun()
+            st.divider()
+            st.subheader("Absentee Follow-up")
+            msg_follow = st.empty()
+            fud1, fud2 = st.columns([1, 2])
+            fu_d = fud1.date_input("Follow-up Date", date.today(), key="fu_inc")
+            fu_r = next((r for r in st.session_state.attendance_db if r['date']==str(fu_d) and r.get('class_name')==my_cls and r.get('section')==my_sec), None)
+            
+            if fu_r and fu_r['absent_students']:
+                fu_c1, fu_c2 = st.columns(2)
+                with fu_c1:
+                    for roll in sorted(fu_r['absent_students'], key=lambda x: str(x)):
+                        s = next((st for st in my_st if str(st['roll_no'])==str(roll)), None)
+                        if s:
+                            with st.expander(f"📞 Call: {s['name'].upper()} (Roll: {roll})"):
+                                st.write(f"**Primary Contact:** {s['contact1']}")
+                                with st.form(f"fu_{roll}"):
+                                    spoke = st.text_input("Attended By")
+                                    rsn = st.text_area("Reason")
+                                    if st.form_submit_button("Save"):
+                                        st.session_state.followup_db.append({"date": str(fu_d), "class_name": my_cls, "section": my_sec, "branch": my_br, "roll_no": roll, "spoke_to": spoke, "reason": rsn})
+                                        save_data('followup_db', st.session_state.followup_db)
+                                        msg_follow.success("Done!")
+                
+                st.markdown("#### Today's Follow-up Summary")
+                sum_d = []
+                for roll in fu_r['absent_students']:
+                    s = next((st for st in my_st if str(st['roll_no'])==str(roll)), None)
+                    if s:
+                        f_rec = next((f for f in st.session_state.followup_db if f['date']==str(fu_d) and str(f['roll_no'])==str(roll) and f.get('class_name')==my_cls), {})
+                        sum_d.append({"ROLL NO": str(roll), "NAME": s['name'].upper(), "CONTACT": s['contact1'], "ATTENDED BY": f_rec.get('spoke_to', 'Pending').upper(), "REASON": f_rec.get('reason', 'Pending')})
+                if sum_d:
+                    df_sum = pd.DataFrame(sum_d)
+                    df_sum['ROLL NO'] = pd.to_numeric(df_sum['ROLL NO'], errors='coerce')
+                    df_sum = df_sum.sort_values(by='ROLL NO').reset_index(drop=True)
+                    df_sum['ROLL NO'] = df_sum['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
+                    df_sum.insert(0, 'SR. NO.', range(1, len(df_sum) + 1))
+                    df_sum.columns = df_sum.columns.str.upper()
+                    st.dataframe(df_sum, use_container_width=True)
+                    c_f1, c_f2 = st.columns(2)
+                    with c_f1: st.download_button("Download Summary (CSV)", data=generate_csv_with_header(df_sum, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name), file_name=f"Followup_{fu_d}.csv", mime="text/csv")
+                    with c_f2: st.download_button("Download Summary (PDF)", data=generate_pdf(df_sum, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name), file_name=f"Followup_{fu_d}.pdf", mime="application/pdf")
+            elif fu_r: st.success("No absentees!")
+            else: st.warning("Attendance not marked.")
+            
+        with t_teach: render_test_and_marks_module(user)
+        with t_rep: 
+            sec_m = [m for m in st.session_state.marks_db if m.get('class_name')==my_cls and m.get('section')==my_sec and m.get('branch')==my_br]
+            render_report_card_module(sec_m, my_cls, my_crs, my_br, my_sec)
+        with t_prof: render_profile_setup(user)
