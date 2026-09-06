@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "superior-college-okara-9efbc",
+  "private_key_id": "be522f1f097d645f4e33895d907331adf30402b7",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC75gtf8ZPNiA+2\nQTBB2kXb4w/HeqRE1Z7HGTNFHG59wJMAAS5JKiZgM3goWG43XAR2KqtRdSUbfk36\nize0dUHGEh1sAoebEiDbUkSsLCHc8RndFHQn97kh1QgoCFaRbvFWbk7NvZFyvgwn\nUjBuDLiCct+t7jo+n4uj33Yiq10k0VWf9eKR+M33kDO/wtzUMWweRqZMTaTz1Ghm\na2BIFcJPH/KX6qMi3l+pPc3+BfIQj5VX6To6tpPGoKN2446Cyth1fyaubM1TsxKA\nN59RZD8rc6OTo2dWOCXPqRg1Tj5V1q+sYpUf0VGkOi5me9wyElDPbT/lmVyKh+tW\n6dZ2KP47AgMBAAECggEAETiTyU7US42RVxRhbl+pcG4+l3tDi/WCMGA8ZTSmYcsh\nDeqNyfHdg4qkFBqKu3MpC4V8nyIb7Qml7vUMfXMTvKoTXT9cG1fNgBxpo9gFoIDO\nbIc/4BvhsVqbfUPKX1jqMJA6k7uwlXIang3311Y+IOKTYpcHao7n1vSXmLTY/BM1\nOm1gHsijbT02ZJUlAYKEAeSBq+mU8Ax42gsh523bmFrgh4sFzVw6Sq3lEzsk7EIm\n0DE+Hpt6U+q77crkCrGJURlBRmNeIANua9brKjq7ieXgSikpEc4cS2oe3rlFNaZH\nt33s/FCTeIS5nqXo/eZT2B+rnim+ohJDNGbt84qq1QKBgQDqJb69TYdm9qy6lnkZ\nVc0td/V3AerDeyrVCOCSQ4ppO9wWdne/6jHv6vqoYawnmnEfJtlwFHL2vkEgFG6b\nCssTZ7ViBmGbTXde1v1AiD0oRYg7hw9de8r6PF/sFUQVCnusZoHDWBsq2rEtM0u4\nPnjJYCrRNU/elav9mXU9jLgHTQKBgQDNb1JK9VmBLXwn1Cxk9HMN+yGeFgQkS3Im\n5USRg+0DA/G2vA1qLyWJQWs98RIpGrdWndOo/0MgRASRUgNU9aQXtebRxwXTHRNM\n5Di6q1KdZyCRSGtpTaSt3XhtJjwocgNDTHT9lXAimz2wOfajsXtScCdmk5aJiSlb\nvI4BYD2npwKBgQCRvHKO8u1/CbQS4st3GG9/iHWw3/GWQFg1hrP4da91tntTQ+Nf\nAU6ZrODc4wY7FCaqpAycdS3lJB/27qC1Qa+KYXeFDsG73yiYUCoK+4FNSpHzsym+\nHuoEfIWbtNTOX9sAQEEuK+2k679xicbsY33coU2lL5CJ0xDc5KITcD2u1QKBgEBz\niXzs5qzJaWdRgLAXpTUgsdZYD+qXJPQg/9crbaOBjEcJTqgerIcYWB3x0QHGWPi6\nwVoG47duv4QcF+GCw32Q2x67cw9d0t1PyKB/+YZagXQzJUe/TUgi8JJF6Z/CzVVC\n2n1ocerZi4wLU17d4tPlTec3rIXv22LlkCPMXuuHAoGANuEPmhoK/AXVVEe1nlG+\nhA7ei9u7szPDevowMFT9IR0lDdgbRCnwXJBmIFxGbuivRStWvCoDNK75ZdnwAkNE\nmBHf1ou4SwAbpYnCg1gVco2f7zehfj1q4CRgImyXXfLVOza1824rB08Pahg8Ili2\nnznwCLGRVWtKKNUmH401Diw=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@superior-college-okara-9efbc.iam.gserviceaccount.com",
+  "client_id": "102639214167428648350",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40superior-college-okara-9efbc.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
