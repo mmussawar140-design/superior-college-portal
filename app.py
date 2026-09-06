@@ -29,7 +29,6 @@ if not firebase_admin._apps:
         })
     except Exception as e:
         st.error(f"Firebase Connection Error: {e}")
-
 def load_data(node_name, default_val=[]):
     try:
         data = db.reference(node_name).get()
@@ -43,18 +42,106 @@ def save_data(node_name, data):
     except Exception as e:
         st.error(f"Save Error: {e}")
 
-# --- Custom CSS for Professional Look & Cards ---
+# ==========================================
+# CUSTOM CSS FOR PREMIUM PROFESSIONAL LOOK
+# ==========================================
 st.markdown("""
 <style>
-div[data-testid="metric-container"] {
-    background-color: #F8FAFA;
-    border: 1px solid #E0E6E6;
-    padding: 15px 20px;
-    border-radius: 10px;
-    box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
-    border-left: 5px solid #0A7E7B;
+/* Main App Background (Darker Teal from Image) */
+.stApp {
+    background-color: #083b3c !important;
 }
-.center-text { text-align: center; }
+.stSidebar {
+    background-color: #062b2b !important;
+}
+
+/* Global Font: Arial, Size 12, Bold */
+html, body, [class*="css"], p, span, label, th, td, div {
+    font-family: 'Arial', sans-serif !important;
+    font-size: 12px !important;
+    font-weight: bold !important;
+}
+
+/* Headings Accent Color */
+h1, h2, h3, h4, h5, h6 {
+    color: #f7b731 !important; /* Golden contrast for headers */
+    font-size: 20px !important; 
+}
+
+/* Base Text Colors for readability on dark background */
+p, span, label, li, div {
+    color: #e0f2f1 !important;
+}
+
+/* --- TABS STYLING (3D Raised Blocks) --- */
+div[data-baseweb="tab-list"] {
+    gap: 12px;
+    background-color: transparent !important;
+    padding: 15px 0px;
+}
+button[data-baseweb="tab"] {
+    background-color: #115e5e !important;
+    color: #ffffff !important;
+    border-radius: 8px 8px 0px 0px !important;
+    padding: 12px 25px !important;
+    border: 1px solid #0d4a4a !important;
+    border-bottom: none !important;
+    box-shadow: inset 0px 2px 5px rgba(255,255,255,0.2), 3px -3px 6px rgba(0,0,0,0.5) !important;
+    margin-bottom: 0 !important;
+    transition: all 0.3s ease;
+}
+button[data-baseweb="tab"][aria-selected="true"] {
+    background-color: #f7b731 !important; /* Active tab becomes Golden */
+    color: #000000 !important;
+    border: 2px solid #c28c11 !important;
+    border-bottom: none !important;
+    box-shadow: inset 0px 2px 5px rgba(255,255,255,0.5), 5px -5px 12px rgba(0,0,0,0.8) !important;
+    transform: translateY(-5px);
+    z-index: 10;
+}
+button[data-baseweb="tab"] div[data-testid="stMarkdownContainer"] p {
+    font-size: 14px !important;
+    color: inherit !important;
+}
+
+/* Metric Cards Styling (3D Dashboard Cards) */
+div[data-testid="metric-container"] {
+    background: linear-gradient(145deg, #115e5e, #0d4a4a) !important;
+    border: 1px solid #083b3c !important;
+    padding: 15px 20px !important;
+    border-radius: 8px !important;
+    box-shadow: 4px 4px 10px rgba(0,0,0,0.6), inset 1px 1px 2px rgba(255,255,255,0.1) !important;
+    border-left: 6px solid #f7b731 !important;
+}
+
+/* Form Inputs and Dropdowns Visibility Fix */
+input, textarea, div[data-baseweb="select"] > div {
+    background-color: #f0f8f8 !important;
+    color: #000000 !important;
+    border-radius: 5px !important;
+    border: none !important;
+}
+ul[data-baseweb="menu"] {
+    background-color: #ffffff !important;
+}
+ul[data-baseweb="menu"] li {
+    color: #000000 !important;
+    font-weight: bold !important;
+}
+
+/* Dataframes Styling */
+[data-testid="stDataFrame"] {
+    background-color: #ffffff !important;
+    border-radius: 5px;
+    overflow: hidden;
+}
+[data-testid="stDataFrame"] div, [data-testid="stDataFrame"] span {
+    color: #000000 !important;
+}
+[data-testid="stDataFrame"] th {
+    background-color: #115e5e !important;
+    color: #ffffff !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
