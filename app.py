@@ -17,17 +17,18 @@ st.set_page_config(page_title="Superior College Okara Portal", layout="wide", pa
 # ==========================================
 # FIREBASE DATABASE CONNECTION
 # ==========================================
-# ⚠️ اپنا فائر بیس لنک نیچے والی لائن میں ضرور ڈالیں:
 FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/" 
 
 if not firebase_admin._apps:
-    try:
-        cred = credentials.Certificate("firebase_key.json")
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': FIREBASE_URL
-        })
-    except Exception as e:
-        st.error(f"Firebase Connection Error: {e}")
+try:
+    # راز (Secret) سے چابی پڑھنا
+    key_dict = json.loads(st.secrets["firebase_secret"])
+    cred = credentials.Certificate(key_dict)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': FIREBASE_URL
+    })
+except Exception as e:
+    st.error(f"Firebase Connection Error: {e}")
 
 def load_data(node_name, default_val=[]):
     try:
