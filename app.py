@@ -18,12 +18,12 @@ st.set_page_config(page_title="Superior College Okara Portal", layout="wide", pa
 # ==========================================
 # FIREBASE DATABASE CONNECTION
 # ==========================================
-FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/"
+FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/" 
 
 if not firebase_admin._apps:
     try:
-        # Streamlit کا نیا اور 100% محفوظ طریقہ
-        key_dict = dict(st.secrets["firebase"])
+        # راز (Secret) سے چابی پڑھنا
+        key_dict = json.loads(st.secrets["firebase_secret"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {
             'databaseURL': FIREBASE_URL
@@ -158,35 +158,47 @@ def get_section_options(cls_name, crs_name, br_name):
     return ["N/A"]
 
 # ==========================================
-# EXPORT GENERATORS
+# EXPORT GENERATORS (WITH UNICODE DEFENSE)
 # ==========================================
+def safe_pdf_str(text):
+    """Prevents UnicodeEncodeError in FPDF by replacing unsupported characters."""
+    try:
+        return str(text).encode('latin-1', 'replace').decode('latin-1')
+    except:
+        return ""
+
 def generate_csv_with_header_utf8(df, title, meta_info=""):
     header = f'"SUPERIOR COLLEGE OKARA"\n"{title}"\n"{meta_info}"\n'
     return header.encode('utf-8-sig') + b'\n' + df.to_csv(index=False).encode('utf-8-sig')
 
 def generate_basic_pdf(df, title, meta_info=""):
-    pdf = FPDF(orientation='L')
-    pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 8, "SUPERIOR COLLEGE OKARA", 0, 1, 'C')
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, title, 0, 1, 'C')
-    pdf.set_font("Arial", '', 10)
-    if meta_info: pdf.cell(0, 6, meta_info, 0, 1, 'C')
-    pdf.ln(8)
-    col_widths = [15] + [(260)/len(df.columns)] * (len(df.columns)-1)
-    pdf.set_font("Arial", 'B', 8)
-    for i, h in enumerate(df.columns): pdf.cell(col_widths[i], 8, str(h)[:15], 1, 0, 'C')
-    pdf.ln()
-    pdf.set_font("Arial", '', 8)
-    for idx, row in df.iterrows():
-        for i, val in enumerate(row):
-            t_val = str(val)[:45] + '...' if len(str(val))>45 else str(val)
-            pdf.cell(col_widths[i], 8, t_val, 1, 0, 'C')
+    try:
+        pdf = FPDF(orientation='L')
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(0, 8, safe_pdf_str("SUPERIOR COLLEGE OKARA"), 0, 1, 'C')
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, safe_pdf_str(title), 0, 1, 'C')
+        pdf.set_font("Arial", '', 10)
+        if meta_info: pdf.cell(0, 6, safe_pdf_str(meta_info), 0, 1, 'C')
+        pdf.ln(8)
+        
+        col_widths = [15] + [(260) / len(df.columns)] * (len(df.columns) - 1)
+        pdf.set_font("Arial", 'B', 8)
+        for i, h in enumerate(df.columns): 
+            pdf.cell(col_widths[i], 8, safe_pdf_str(h)[:15], 1, 0, 'C')
         pdf.ln()
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    pdf.output(tmp.name)
-    with open(tmp.name, "rb") as f: return f.read()
+        pdf.set_font("Arial", '', 8)
+        for idx, row in df.iterrows():
+            for i, val in enumerate(row):
+                t_val = safe_pdf_str(val)[:45] + '...' if len(str(val)) > 45 else safe_pdf_str(val)
+                pdf.cell(col_widths[i], 8, t_val, 1, 0, 'C')
+            pdf.ln()
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        pdf.output(tmp.name)
+        with open(tmp.name, "rb") as f: return f.read()
+    except:
+        return None
 
 def generate_csv_with_header(df, title, date_str="", class_name="", section="", incharge=""):
     date_f = format_date_ddmmyyyy(date_str) if "-" in str(date_str) and len(str(date_str)) <= 10 else date_str
@@ -197,117 +209,123 @@ def generate_csv_with_header(df, title, date_str="", class_name="", section="", 
     if section: meta.append(f"Section: {section}")
     if incharge and incharge != "Not Assigned": meta.append(f"Class Incharge: {incharge}")
     if meta: header += '"' + " | ".join(meta) + '"\n'
-    return header.encode('utf-8') + b'\n' + df.to_csv(index=False).encode('utf-8')
+    return header.encode('utf-8-sig') + b'\n' + df.to_csv(index=False).encode('utf-8-sig')
 
 def generate_pdf(df, title, date_str="", class_name="", section="", incharge=""):
-    pdf = FPDF(orientation='L')
-    pdf.add_page()
-    if os.path.exists("image_500c0a.png"): pdf.image("image_500c0a.png", x=10, y=8, w=22)
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 8, "SUPERIOR COLLEGE OKARA", 0, 1, 'C')
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, title, 0, 1, 'C')
-    pdf.set_font("Arial", '', 10)
-    meta = []
-    if date_str: meta.append(f"Date/Session: {format_date_ddmmyyyy(date_str)}")
-    if class_name: meta.append(f"Class: {class_name}")
-    if section: meta.append(f"Section: {section}")
-    if incharge and incharge != "Not Assigned": meta.append(f"Class Incharge: {incharge}")
-    if meta: pdf.cell(0, 6, " | ".join(meta), 0, 1, 'C')
-    pdf.ln(8)
-    col_widths = []
-    rem_w = 270
-    dyn_cols = 0
-    for h in df.columns:
-        hu = str(h).upper()
-        if hu in ["STUDENT NAME", "NAME"]: col_widths.append(40); rem_w -= 40
-        elif hu in ["ROLL NO"]: col_widths.append(20); rem_w -= 20
-        elif hu in ["SR. NO."]: col_widths.append(15); rem_w -= 15
-        else: col_widths.append(0); dyn_cols += 1
-    if dyn_cols > 0:
-        dyn_w = rem_w / dyn_cols
-        col_widths = [dyn_w if w==0 else w for w in col_widths]
-    pdf.set_font("Arial", 'B', 8)
-    for i, h in enumerate(df.columns): pdf.cell(col_widths[i], 8, str(h)[:15], 1, 0, 'C')
-    pdf.ln()
-    pdf.set_font("Arial", '', 8)
-    for idx, row in df.iterrows():
-        for i, val in enumerate(row):
-            t_val = str(val)[:35] + '...' if len(str(val))>35 else str(val)
-            pdf.cell(col_widths[i], 8, t_val, 1, 0, 'L' if str(df.columns[i]).upper() in ["STUDENT NAME", "NAME"] else 'C')
+    try:
+        pdf = FPDF(orientation='L')
+        pdf.add_page()
+        if os.path.exists("image_500c0a.png"): pdf.image("image_500c0a.png", x=10, y=8, w=22)
+        pdf.set_font("Arial", 'B', 16)
+        pdf.cell(0, 8, safe_pdf_str("SUPERIOR COLLEGE OKARA"), 0, 1, 'C')
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(0, 8, safe_pdf_str(title), 0, 1, 'C')
+        pdf.set_font("Arial", '', 10)
+        meta = []
+        if date_str: meta.append(f"Date/Session: {format_date_ddmmyyyy(date_str)}")
+        if class_name: meta.append(f"Class: {class_name}")
+        if section: meta.append(f"Section: {section}")
+        if incharge and incharge != "Not Assigned": meta.append(f"Class Incharge: {incharge}")
+        if meta: pdf.cell(0, 6, safe_pdf_str(" | ".join(meta)), 0, 1, 'C')
+        pdf.ln(8)
+        col_widths = []
+        rem_w = 270
+        dyn_cols = 0
+        for h in df.columns:
+            hu = str(h).upper()
+            if hu in ["STUDENT NAME", "NAME"]: col_widths.append(40); rem_w -= 40
+            elif hu in ["ROLL NO"]: col_widths.append(20); rem_w -= 20
+            elif hu in ["SR. NO."]: col_widths.append(15); rem_w -= 15
+            else: col_widths.append(0); dyn_cols += 1
+        if dyn_cols > 0:
+            dyn_w = rem_w / dyn_cols
+            col_widths = [dyn_w if w == 0 else w for w in col_widths]
+        pdf.set_font("Arial", 'B', 8)
+        for i, h in enumerate(df.columns): pdf.cell(col_widths[i], 8, safe_pdf_str(h)[:15], 1, 0, 'C')
         pdf.ln()
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    pdf.output(tmp.name)
-    with open(tmp.name, "rb") as f: return f.read()
+        pdf.set_font("Arial", '', 8)
+        for idx, row in df.iterrows():
+            for i, val in enumerate(row):
+                t_val = safe_pdf_str(val)[:35] + '...' if len(str(val)) > 35 else safe_pdf_str(val)
+                pdf.cell(col_widths[i], 8, t_val, 1, 0, 'L' if str(df.columns[i]).upper() in ["STUDENT NAME", "NAME"] else 'C')
+            pdf.ln()
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        pdf.output(tmp.name)
+        with open(tmp.name, "rb") as f: return f.read()
+    except:
+        return None
 
 def draw_single_report_card(pdf, student_info, marks_df, totals):
     pdf.add_page()
     if os.path.exists("image_500c0a.png"): pdf.image("image_500c0a.png", x=10, y=8, w=22)
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 8, "SUPERIOR COLLEGE OKARA", 0, 1, 'C')
+    pdf.cell(0, 8, safe_pdf_str("SUPERIOR COLLEGE OKARA"), 0, 1, 'C')
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, "STUDENT REPORT CARD", 0, 1, 'C')
+    pdf.cell(0, 8, safe_pdf_str("STUDENT REPORT CARD"), 0, 1, 'C')
     pdf.set_font("Arial", '', 10)
     meta = []
     if student_info.get('test_month'): meta.append(f"Session: {student_info['test_month']}")
     meta.append(f"Class: {student_info['class']}")
     meta.append(f"Section: {student_info['section']}")
     if student_info['incharge'] != "Not Assigned": meta.append(f"Class Incharge: {student_info['incharge']}")
-    pdf.cell(0, 6, " | ".join(meta), 0, 1, 'C')
+    pdf.cell(0, 6, safe_pdf_str(" | ".join(meta)), 0, 1, 'C')
     pdf.ln(8)
     pdf.set_font("Arial", 'B', 10)
-    pdf.cell(90, 8, f"STUDENT NAME: {student_info['name']}", 0, 0)
-    pdf.cell(90, 8, f"FATHER NAME: {student_info['father_name']}", 0, 1)
-    pdf.cell(90, 8, f"ROLL NO: {student_info['roll_no']}", 0, 0)
-    pdf.cell(90, 8, f"COURSE: {student_info['course']}", 0, 1)
-    pdf.cell(90, 8, f"TEST NAME: {student_info['test_name']}", 0, 1)
+    pdf.cell(90, 8, safe_pdf_str(f"STUDENT NAME: {student_info['name']}"), 0, 0)
+    pdf.cell(90, 8, safe_pdf_str(f"FATHER NAME: {student_info['father_name']}"), 0, 1)
+    pdf.cell(90, 8, safe_pdf_str(f"ROLL NO: {student_info['roll_no']}"), 0, 0)
+    pdf.cell(90, 8, safe_pdf_str(f"COURSE: {student_info['course']}"), 0, 1)
+    pdf.cell(90, 8, safe_pdf_str(f"TEST NAME: {student_info['test_name']}"), 0, 1)
     pdf.ln(4)
     cols = ['SR. NO.', 'SUBJECT', 'TEACHER', 'TOTAL MARKS', 'OBTAINED MARKS', 'PERCENTAGE']
     col_widths = [15, 45, 45, 25, 30, 30]
     pdf.set_fill_color(220, 220, 220)
     pdf.set_font("Arial", 'B', 9)
-    for i, header in enumerate(cols): pdf.cell(col_widths[i], 8, header, 1, 0, 'C', fill=True)
+    for i, header in enumerate(cols): pdf.cell(col_widths[i], 8, safe_pdf_str(header), 1, 0, 'C', fill=True)
     pdf.ln()
     pdf.set_font("Arial", '', 9)
     for _, row in marks_df.iterrows():
-        pdf.cell(col_widths[0], 8, str(row['SR. NO.']), 1, 0, 'C')
-        pdf.cell(col_widths[1], 8, str(row['SUBJECT']).upper(), 1, 0, 'L')
-        pdf.cell(col_widths[2], 8, str(row['TEACHER']).upper(), 1, 0, 'L')
-        pdf.cell(col_widths[3], 8, str(row['TOTAL MARKS']), 1, 0, 'C')
-        pdf.cell(col_widths[4], 8, str(row['OBTAINED MARKS']), 1, 0, 'C')
-        pdf.cell(col_widths[5], 8, str(row['PERCENTAGE']), 1, 1, 'C')
+        pdf.cell(col_widths[0], 8, safe_pdf_str(row['SR. NO.']), 1, 0, 'C')
+        pdf.cell(col_widths[1], 8, safe_pdf_str(row['SUBJECT']).upper(), 1, 0, 'L')
+        pdf.cell(col_widths[2], 8, safe_pdf_str(row['TEACHER']).upper(), 1, 0, 'L')
+        pdf.cell(col_widths[3], 8, safe_pdf_str(row['TOTAL MARKS']), 1, 0, 'C')
+        pdf.cell(col_widths[4], 8, safe_pdf_str(row['OBTAINED MARKS']), 1, 0, 'C')
+        pdf.cell(col_widths[5], 8, safe_pdf_str(row['PERCENTAGE']), 1, 1, 'C')
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(col_widths[0]+col_widths[1]+col_widths[2], 8, "GRAND TOTAL", 1, 0, 'R', fill=True)
-    pdf.cell(col_widths[3], 8, str(totals['TOTAL MARKS']), 1, 0, 'C', fill=True)
-    pdf.cell(col_widths[4], 8, str(totals['OBTAINED MARKS']), 1, 0, 'C', fill=True)
-    pdf.cell(col_widths[5], 8, str(totals['PERCENTAGE']), 1, 1, 'C', fill=True)
+    pdf.cell(col_widths[3], 8, safe_pdf_str(totals['TOTAL MARKS']), 1, 0, 'C', fill=True)
+    pdf.cell(col_widths[4], 8, safe_pdf_str(totals['OBTAINED MARKS']), 1, 0, 'C', fill=True)
+    pdf.cell(col_widths[5], 8, safe_pdf_str(totals['PERCENTAGE']), 1, 1, 'C', fill=True)
 
 def generate_bulk_report_cards(roll_nos, marks_list, class_name, course, branch, section, test_name, test_month):
-    pdf = FPDF()
-    for roll in roll_nos:
-        st_marks = [m for m in marks_list if m['roll_no'] == roll]
-        if not st_marks: continue
-        st_info_db = next((s for s in st.session_state.students_db if s['roll_no'] == roll and s.get('class_name')==class_name), {})
-        incharge_name = get_class_incharge(class_name, course, branch, section)
-        df = pd.DataFrame(st_marks)
-        df.rename(columns={'subject': 'SUBJECT', 'teacher': 'TEACHER', 'total_marks': 'TOTAL MARKS', 'obtained_marks': 'OBTAINED MARKS'}, inplace=True)
-        df['TOTAL MARKS'] = df['TOTAL MARKS'].apply(fmt_mark)
-        df['OBTAINED MARKS'] = df['OBTAINED MARKS'].apply(fmt_mark)
-        df.insert(0, 'SR. NO.', range(1, len(df) + 1))
-        grand_total = sum([m['total_marks'] for m in st_marks])
-        grand_obt = sum([m['obtained_marks'] for m in st_marks])
-        overall_perc = round((grand_obt / grand_total) * 100, 2) if grand_total > 0 else 0
-        df['PERCENTAGE'] = [f"{round((m['obtained_marks']/m['total_marks'])*100, 2)}%" if m['total_marks']>0 else "0%" for m in st_marks]
-        s_info = {
-            "name": st_marks[0]['student_name'].upper(), "father_name": st_info_db.get('father_name', 'N/A').upper(),
-            "roll_no": roll, "class": class_name, "course": course, "section": section,
-            "test_name": test_name.upper(), "test_month": test_month, "incharge": incharge_name.upper()
-        }
-        totals = {'TOTAL MARKS': fmt_mark(grand_total), 'OBTAINED MARKS': fmt_mark(grand_obt), 'PERCENTAGE': f"{overall_perc}%"}
-        draw_single_report_card(pdf, s_info, df[['SR. NO.', 'SUBJECT', 'TEACHER', 'TOTAL MARKS', 'OBTAINED MARKS', 'PERCENTAGE']], totals)
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    pdf.output(tmp_file.name)
-    with open(tmp_file.name, "rb") as f: return f.read()
+    try:
+        pdf = FPDF()
+        for roll in roll_nos:
+            st_marks = [m for m in marks_list if m['roll_no'] == roll]
+            if not st_marks: continue
+            st_info_db = next((s for s in st.session_state.students_db if s['roll_no'] == roll and s.get('class_name')==class_name), {})
+            incharge_name = get_class_incharge(class_name, course, branch, section)
+            df = pd.DataFrame(st_marks)
+            df.rename(columns={'subject': 'SUBJECT', 'teacher': 'TEACHER', 'total_marks': 'TOTAL MARKS', 'obtained_marks': 'OBTAINED MARKS'}, inplace=True)
+            df['TOTAL MARKS'] = df['TOTAL MARKS'].apply(fmt_mark)
+            df['OBTAINED MARKS'] = df['OBTAINED MARKS'].apply(fmt_mark)
+            df.insert(0, 'SR. NO.', range(1, len(df) + 1))
+            grand_total = sum([m['total_marks'] for m in st_marks])
+            grand_obt = sum([m['obtained_marks'] for m in st_marks])
+            overall_perc = round((grand_obt / grand_total) * 100, 2) if grand_total > 0 else 0
+            df['PERCENTAGE'] = [f"{round((m['obtained_marks']/m['total_marks'])*100, 2)}%" if m['total_marks']>0 else "0%" for m in st_marks]
+            s_info = {
+                "name": st_marks[0]['student_name'].upper(), "father_name": st_info_db.get('father_name', 'N/A').upper(),
+                "roll_no": roll, "class": class_name, "course": course, "section": section,
+                "test_name": test_name.upper(), "test_month": test_month, "incharge": incharge_name.upper()
+            }
+            totals = {'TOTAL MARKS': fmt_mark(grand_total), 'OBTAINED MARKS': fmt_mark(grand_obt), 'PERCENTAGE': f"{overall_perc}%"}
+            draw_single_report_card(pdf, s_info, df[['SR. NO.', 'SUBJECT', 'TEACHER', 'TOTAL MARKS', 'OBTAINED MARKS', 'PERCENTAGE']], totals)
+        tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        pdf.output(tmp_file.name)
+        with open(tmp_file.name, "rb") as f: return f.read()
+    except:
+        return None
 
 # ==========================================
 # MODULES (Syllabus, Report Cards, Setup, Tests)
@@ -389,10 +407,13 @@ def render_syllabus_tracker(user, is_admin=False):
             
         st.divider()
         csv_data = generate_csv_with_header_utf8(df_syl.drop(columns=['ID']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
-        pdf_data = generate_basic_pdf(df_syl.drop(columns=['ID', 'COMPLETED']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
+        
         d1, d2 = st.columns(2)
-        d1.download_button("📥 Download Excel/CSV (Best for Urdu)", data=csv_data, file_name="Syllabus.csv", mime="text/csv")
-        d2.download_button("📥 Download PDF (English Only)", data=pdf_data, file_name="Syllabus.pdf", mime="application/pdf")
+        d1.download_button("📥 Download Excel/CSV (اردو سپورٹ کے ساتھ)", data=csv_data, file_name="Syllabus.csv", mime="text/csv")
+        
+        pdf_data = generate_basic_pdf(df_syl.drop(columns=['ID', 'COMPLETED']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
+        if pdf_data:
+            d2.download_button("📥 Download PDF (English Only)", data=pdf_data, file_name="Syllabus.pdf", mime="application/pdf")
     else:
         st.info("No syllabus data available for this selection yet.")
 
@@ -440,12 +461,14 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
         
         sel_rolls = edited_df[edited_df["SELECT"] == True]["ROLL NO"].tolist()
         c1, c2, c3 = st.columns(3)
-        with c1: st.download_button("Download Result (PDF)", data=generate_pdf(sum_df.drop(columns=["SELECT"]), "CLASS RESULT", t_month, class_name, section, incharge_name), file_name=f"Result_{class_name}_{section}.pdf", mime="application/pdf")
+        with c1: 
+            pdf_bytes = generate_pdf(sum_df.drop(columns=["SELECT"]), "CLASS RESULT", t_month, class_name, section, incharge_name)
+            if pdf_bytes: st.download_button("Download Result (PDF)", data=pdf_bytes, file_name=f"Result_{class_name}_{section}.pdf", mime="application/pdf")
         with c2: st.download_button("Download Result (Excel)", data=generate_csv_with_header(sum_df.drop(columns=["SELECT"]), "CLASS RESULT", t_month, class_name, section, incharge_name), file_name=f"Result_{class_name}_{section}.csv", mime="text/csv")
         with c3:
             if sel_rolls:
                 bulk_pdf = generate_bulk_report_cards(sel_rolls, f_marks, class_name, course, branch, section, t_type, t_month)
-                st.download_button(f"Download Selected Report Cards (PDF)", data=bulk_pdf, file_name="Selected_ReportCards.pdf", mime="application/pdf", type="primary")
+                if bulk_pdf: st.download_button(f"Download Selected Report Cards (PDF)", data=bulk_pdf, file_name="Selected_ReportCards.pdf", mime="application/pdf", type="primary")
             else: st.button("Select checkboxes to bulk download", disabled=True)
 
         st.divider()
@@ -493,7 +516,7 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
                 st.download_button("Download Report (CSV)", data=generate_csv_with_header(csv_data, f"STUDENT REPORT CARD - {s_dict[view_roll].upper()}", t_month, class_name, section, incharge_name), file_name=f"ReportCard_{view_roll}.csv", mime="text/csv")
             with col_b2:
                 single_pdf = generate_bulk_report_cards([view_roll], f_marks, class_name, course, branch, section, t_type, t_month)
-                st.download_button("Download Report (PDF)", data=single_pdf, file_name=f"ReportCard_{view_roll}.pdf", mime="application/pdf", type="primary")
+                if single_pdf: st.download_button("Download Report (PDF)", data=single_pdf, file_name=f"ReportCard_{view_roll}.pdf", mime="application/pdf", type="primary")
 
 def update_user_in_db(user_dict):
     for i, u in enumerate(st.session_state.users_db):
@@ -698,9 +721,8 @@ if not st.session_state.logged_in:
                             st.session_state.users_db.append(user)
                             save_data('users_db', st.session_state.users_db)
                             
-                            # Success Message with Delay before Rerun
                             msg_reg.success(f"✔️ {role} Registered Successfully! Redirecting to Login...")
-                            time.sleep(2) # 2 seconds delay to see the message
+                            time.sleep(2)
                             st.rerun() 
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -819,7 +841,7 @@ else:
                 rep_data = []
                 for a in [r for r in st.session_state.attendance_db if r['date'] == str(rep_date)]:
                     for roll in a.get('absent_students', []):
-                        s = next((st for st in st.session_state.students_db if str(s['roll_no'])==str(roll) and st.get('class_name')==a['class_name']), None)
+                        s = next((st for st in st.session_state.students_db if str(st['roll_no'])==str(roll) and st.get('class_name')==a['class_name']), None)
                         if s:
                             fu = next((f for f in st.session_state.followup_db if f['date']==str(rep_date) and str(f['roll_no'])==str(roll)), {})
                             inc = get_class_incharge(a['class_name'], a['course'], a['branch'], a['section'])
@@ -832,7 +854,9 @@ else:
                     st.dataframe(df_rep, use_container_width=True)
                     c_am1, c_am2 = st.columns(2)
                     with c_am1: st.download_button("Download Report (CSV)", data=generate_csv_with_header(df_rep, "COLLEGE ABSENTEE REPORT", rep_date), file_name=f"Absentee_{rep_date}.csv", mime="text/csv")
-                    with c_am2: st.download_button("Download Report (PDF)", data=generate_pdf(df_rep, "COLLEGE ABSENTEE REPORT", rep_date), file_name=f"Absentee_{rep_date}.pdf", mime="application/pdf")
+                    with c_am2: 
+                        abs_pdf = generate_pdf(df_rep, "COLLEGE ABSENTEE REPORT", rep_date)
+                        if abs_pdf: st.download_button("Download Report (PDF)", data=abs_pdf, file_name=f"Absentee_{rep_date}.pdf", mime="application/pdf")
                 else: st.info("No absentees.")
             with rt3:
                 tr_st = [s for s in st.session_state.students_db if s.get('transport') == 'Yes']
@@ -846,7 +870,9 @@ else:
                     st.dataframe(display_t, use_container_width=True)
                     c_tm1, c_tm2 = st.columns(2)
                     with c_tm1: st.download_button("Download Transport List (CSV)", data=generate_csv_with_header(display_t, "COLLEGE TRANSPORT USERS", date.today()), file_name="Transport.csv", mime="text/csv")
-                    with c_tm2: st.download_button("Download Transport List (PDF)", data=generate_pdf(display_t, "COLLEGE TRANSPORT USERS", date.today()), file_name="Transport.pdf", mime="application/pdf")
+                    with c_tm2: 
+                        tr_pdf = generate_pdf(display_t, "COLLEGE TRANSPORT USERS", date.today())
+                        if tr_pdf: st.download_button("Download Transport List (PDF)", data=tr_pdf, file_name="Transport.pdf", mime="application/pdf")
                 else: st.info("No transport users.")
             with rt4:
                 st.subheader("Section-wise Student List")
@@ -867,7 +893,9 @@ else:
                     inc_n = get_class_incharge(sel_s_class, sel_s_course, sel_s_branch, sel_s_sec)
                     c_sl1, c_sl2 = st.columns(2)
                     with c_sl1: st.download_button("Download List (CSV)", data=generate_csv_with_header(display_s, "STUDENT LIST", date.today(), sel_s_class, sel_s_sec, inc_n), file_name=f"Students_{sel_s_class}_{sel_s_sec}.csv", mime="text/csv")
-                    with c_sl2: st.download_button("Download List (PDF)", data=generate_pdf(display_s, "STUDENT LIST", date.today(), sel_s_class, sel_s_sec, inc_n), file_name=f"Students_{sel_s_class}_{sel_s_sec}.pdf", mime="application/pdf")
+                    with c_sl2: 
+                        sl_pdf = generate_pdf(display_s, "STUDENT LIST", date.today(), sel_s_class, sel_s_sec, inc_n)
+                        if sl_pdf: st.download_button("Download List (PDF)", data=sl_pdf, file_name=f"Students_{sel_s_class}_{sel_s_sec}.pdf", mime="application/pdf")
                 else: st.info("No students found in this section.")
         
     # --- TEACHER DASHBOARD ---
@@ -908,7 +936,9 @@ else:
                         c1, c2 = st.columns(2)
                         title = f"SUBJECT RESULT: {t_subj.upper()} - {t_type.upper()}"
                         with c1: st.download_button("Download Result (CSV)", data=generate_csv_with_header(df, title, t_date, t_cls, t_sec, inc_name), file_name=f"Result_{t_subj}_{t_cls}.csv", mime="text/csv")
-                        with c2: st.download_button("Download Result (PDF)", data=generate_pdf(df, title, t_date, t_cls, t_sec, inc_name), file_name=f"Result_{t_subj}_{t_cls}.pdf", mime="application/pdf")
+                        with c2: 
+                            res_pdf = generate_pdf(df, title, t_date, t_cls, t_sec, inc_name)
+                            if res_pdf: st.download_button("Download Result (PDF)", data=res_pdf, file_name=f"Result_{t_subj}_{t_cls}.pdf", mime="application/pdf")
 
         with t_stu:
             st.subheader("My Class Students")
@@ -1028,7 +1058,9 @@ else:
                 
                 c_sdl1, c_sdl2 = st.columns(2)
                 with c_sdl1: st.download_button("Download Class List (CSV)", data=generate_csv_with_header(display_dl, "REGISTERED STUDENTS LIST", date.today(), my_cls, my_sec, incharge_name), file_name=f"Students_{my_cls}_{my_sec}.csv", mime="text/csv")
-                with c_sdl2: st.download_button("Download Class List (PDF)", data=generate_pdf(display_dl, "REGISTERED STUDENTS LIST", date.today(), my_cls, my_sec, incharge_name), file_name=f"Students_{my_cls}_{my_sec}.pdf", mime="application/pdf")
+                with c_sdl2: 
+                    cl_pdf = generate_pdf(display_dl, "REGISTERED STUDENTS LIST", date.today(), my_cls, my_sec, incharge_name)
+                    if cl_pdf: st.download_button("Download Class List (PDF)", data=cl_pdf, file_name=f"Students_{my_cls}_{my_sec}.pdf", mime="application/pdf")
 
         with t_att:
             at1, at2 = st.columns([1, 1])
@@ -1087,7 +1119,9 @@ else:
                     st.dataframe(df_sum, use_container_width=True)
                     c_f1, c_f2 = st.columns(2)
                     with c_f1: st.download_button("Download Summary (CSV)", data=generate_csv_with_header(df_sum, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name), file_name=f"Followup_{fu_d}.csv", mime="text/csv")
-                    with c_f2: st.download_button("Download Summary (PDF)", data=generate_pdf(df_sum, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name), file_name=f"Followup_{fu_d}.pdf", mime="application/pdf")
+                    with c_f2: 
+                        fu_pdf = generate_pdf(df_sum, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name)
+                        if fu_pdf: st.download_button("Download Summary (PDF)", data=fu_pdf, file_name=f"Followup_{fu_d}.pdf", mime="application/pdf")
             elif fu_r: st.success("No absentees!")
             else: st.warning("Attendance not marked.")
             
