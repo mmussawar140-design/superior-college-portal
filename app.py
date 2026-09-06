@@ -17,10 +17,11 @@ st.set_page_config(page_title="Superior College Okara Portal", layout="wide", pa
 # ==========================================
 # FIREBASE DATABASE CONNECTION
 # ==========================================
-FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/"
+FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/" 
 
 if not firebase_admin._apps:
     try:
+        # راز (Secret) سے چابی پڑھنا
         key_dict = json.loads(st.secrets["firebase_secret"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {
@@ -51,17 +52,35 @@ st.markdown("""
 .stApp { background-color: #083b3c !important; }
 .stSidebar { background-color: #062b2b !important; }
 
-/* Golden Headings */
-h1, h2, h3, h4 { color: #f7b731 !important; font-family: 'Arial', sans-serif !important; font-weight: bold !important; }
+/* Global Text Color: White */
+h1, h2, h3, h4, h5, h6, p, label, li, div[data-testid="stMarkdownContainer"] {
+    color: #ffffff !important;
+    font-family: 'Arial', sans-serif !important;
+    font-weight: bold !important;
+}
+
+/* Headings Sizes */
 h1 { font-size: 36px !important; }
 h2 { font-size: 30px !important; }
+h3 { font-size: 24px !important; }
 
-/* Safe Text Styling (Will not break password eye icon) */
-.stMarkdown p, .stMarkdown label, .stCheckbox label { 
-    color: #e0f2f1 !important; 
-    font-size: 14px !important; 
-    font-family: 'Arial', sans-serif !important; 
+/* Form Inputs and Dropdowns (Black text inside) */
+input, textarea, div[data-baseweb="select"] > div, div[data-baseweb="select"] span {
+    background-color: #f0f8f8 !important;
+    color: #000000 !important; /* Text inside empty fields is black */
+    border-radius: 5px !important;
+    border: none !important;
+    font-size: 14px !important;
+    font-weight: bold !important;
+}
+input::placeholder, textarea::placeholder {
+    color: #555555 !important;
+}
+ul[data-baseweb="menu"] { background-color: #ffffff !important; }
+ul[data-baseweb="menu"] li, ul[data-baseweb="menu"] span { 
+    color: #000000 !important; 
     font-weight: bold !important; 
+    background-color: transparent !important;
 }
 
 /* 3D Raised Colored Tabs */
@@ -81,10 +100,10 @@ button[data-baseweb="tab"][aria-selected="true"] {
 button[data-baseweb="tab"] p {
     font-size: 16px !important;
     font-weight: bold !important;
-    color: white !important;
+    color: #ffffff !important; /* Tab text is white */
 }
 button[data-baseweb="tab"][aria-selected="true"] p {
-    color: black !important;
+    color: #000000 !important; /* Active Golden Tab text is black for visibility */
 }
 div[data-baseweb="tab-highlight"] { display: none !important; }
 
@@ -106,6 +125,11 @@ div[data-testid="metric-container"] {
     border-radius: 8px !important;
     box-shadow: 4px 4px 10px rgba(0,0,0,0.5) !important;
 }
+
+/* Dataframes - need black text so it is visible on white background */
+[data-testid="stDataFrame"] { background-color: #ffffff !important; border-radius: 5px; overflow: hidden; }
+[data-testid="stDataFrame"] div, [data-testid="stDataFrame"] span { color: #000000 !important; }
+[data-testid="stDataFrame"] th, [data-testid="stDataFrame"] th span { background-color: #115e5e !important; color: #ffffff !important; font-size: 12px !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -136,7 +160,6 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.current_user = None
 
-def check_single_role_exists(role): return any(user['role'] == role for user in st.session_state.users_db)
 def get_class_incharge(class_name, course, branch, section):
     for user in st.session_state.users_db:
         if user['role'] == 'Class Incharge' and user.get('incharge_class') == class_name and user.get('incharge_course') == course and user.get('incharge_branch') == branch and user.get('incharge_section') == section:
@@ -620,26 +643,38 @@ if not st.session_state.logged_in:
             st.markdown('<div class="reg-box">', unsafe_allow_html=True)
             st.subheader("Admin Only Registration")
             msg_reg = st.empty()
-            role = st.selectbox("Role", ["Principal", "Vice Principal", "Controller of Examinations"])
             
-            c_n, c_u = st.columns(2)
-            r_name = c_n.text_input("Name")
-            r_usr = c_u.text_input("Username", key="r_usr")
+            # Check for existing admin roles to prevent duplicates
+            existing_admin_roles = [u.get('role') for u in st.session_state.users_db if u.get('role') in ["Principal", "Vice Principal", "Controller of Examinations"]]
+            available_roles = [r for r in ["Principal", "Vice Principal", "Controller of Examinations"] if r not in existing_admin_roles]
             
-            c_p, c_cp = st.columns(2)
-            r_pwd = c_p.text_input("Password", type="password", key="r_pwd")
-            c_pwd = c_cp.text_input("Confirm Password", type="password")
-            if c_pwd and r_pwd != c_pwd: st.error("Passwords do not match!")
-            
-            if st.button("Register Admin", use_container_width=True):
-                if not r_name or not r_usr or not r_pwd: msg_reg.error("Fill all fields.")
-                elif r_pwd != c_pwd: msg_reg.error("Passwords mismatch.")
-                elif check_single_role_exists(role): msg_reg.error(f"{role} already exists.")
-                else:
-                    user = {"name": r_name, "username": r_usr, "password": r_pwd, "role": role, "profile_setup": True}
-                    st.session_state.users_db.append(user)
-                    save_data('users_db', st.session_state.users_db)
-                    msg_reg.success("Admin registered! Please Login.")
+            if not available_roles:
+                st.success("✔️ تمام ایڈمن اکاؤنٹس (پرنسپل، وائس پرنسپل، کنٹرولر) بن چکے ہیں۔ اب کوئی نیا ایڈمن اکاؤنٹ نہیں بن سکتا۔")
+            else:
+                role = st.selectbox("Role", available_roles)
+                
+                c_n, c_u = st.columns(2)
+                r_name = c_n.text_input("Name")
+                r_usr = c_u.text_input("Username", key="r_usr")
+                
+                c_p, c_cp = st.columns(2)
+                r_pwd = c_p.text_input("Password", type="password", key="r_pwd")
+                c_pwd = c_cp.text_input("Confirm Password", type="password")
+                if c_pwd and r_pwd != c_pwd: st.error("Passwords do not match!")
+                
+                if st.button("Register Admin", use_container_width=True):
+                    if not r_name or not r_usr or not r_pwd: msg_reg.error("Fill all fields.")
+                    elif r_pwd != c_pwd: msg_reg.error("Passwords mismatch.")
+                    else:
+                        # Double-check safety before registering
+                        if role in [u.get('role') for u in st.session_state.users_db]:
+                            msg_reg.error(f"{role} account already exists!")
+                        else:
+                            user = {"name": r_name, "username": r_usr, "password": r_pwd, "role": role, "profile_setup": True}
+                            st.session_state.users_db.append(user)
+                            save_data('users_db', st.session_state.users_db)
+                            msg_reg.success("Admin registered! Please Login.")
+                            st.rerun() # Refresh so the selectbox updates
             st.markdown('</div>', unsafe_allow_html=True)
 
 else:
