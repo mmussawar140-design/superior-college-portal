@@ -44,93 +44,63 @@ def save_data(node_name, data):
         st.error(f"Save Error: {e}")
 
 # ==========================================
-# CUSTOM CSS FOR PREMIUM PROFESSIONAL LOOK
+# SAFE CSS FOR PREMIUM LOOK (NO BROKEN INPUTS)
 # ==========================================
 st.markdown("""
 <style>
-/* Main App Background (Darker Teal from Image) */
+/* App Background */
 .stApp { background-color: #083b3c !important; }
 .stSidebar { background-color: #062b2b !important; }
 
-/* Global Font: Arial, Bold */
-html, body, p, span, label, th, td {
+/* Base Text */
+.stApp, .stApp p, .stApp label, .stApp span {
     font-family: 'Arial', sans-serif !important;
-    font-size: 12px !important;
-    font-weight: bold !important;
     color: #e0f2f1 !important;
+    font-size: 14px !important;
+    font-weight: bold !important;
 }
 
-/* Headings Font Sizes & Colors (Restored to Larger Sizes) */
-h1 { font-family: 'Arial', sans-serif !important; font-size: 36px !important; font-weight: bold !important; color: #f7b731 !important; }
-h2 { font-family: 'Arial', sans-serif !important; font-size: 30px !important; font-weight: bold !important; color: #f7b731 !important; }
-h3 { font-family: 'Arial', sans-serif !important; font-size: 24px !important; font-weight: bold !important; color: #f7b731 !important; }
-h4 { font-family: 'Arial', sans-serif !important; font-size: 20px !important; font-weight: bold !important; color: #f7b731 !important; }
+/* Big Golden Headings */
+h1, h2, h3, h4 { color: #f7b731 !important; font-family: 'Arial', sans-serif !important; font-weight: bold !important; }
+h1 { font-size: 36px !important; }
+h2 { font-size: 30px !important; }
+h3 { font-size: 24px !important; }
 
-/* --- TABS STYLING (3D Raised Blocks) --- */
+/* 3D Raised Tabs with Size 16 */
 div[data-baseweb="tab-list"] {
-    gap: 12px;
-    background-color: transparent !important;
-    padding: 15px 0px;
+    gap: 10px;
+    padding-top: 10px;
 }
 button[data-baseweb="tab"] {
     background-color: #115e5e !important;
-    color: #ffffff !important;
-    border-radius: 8px 8px 0px 0px !important;
-    padding: 12px 25px !important;
-    border: 1px solid #0d4a4a !important;
+    border-radius: 8px 8px 0 0 !important;
+    border: 2px solid #0d4a4a !important;
     border-bottom: none !important;
-    box-shadow: inset 0px 2px 5px rgba(255,255,255,0.2), 3px -3px 6px rgba(0,0,0,0.5) !important;
-    margin-bottom: 0 !important;
-    transition: all 0.3s ease;
+    padding: 12px 25px !important;
+}
+button[data-baseweb="tab"] p {
+    font-size: 16px !important; /* As Requested */
+    font-weight: bold !important;
+    color: #ffffff !important;
 }
 button[data-baseweb="tab"][aria-selected="true"] {
-    background-color: #f7b731 !important; 
-    color: #000000 !important;
+    background-color: #f7b731 !important;
     border: 2px solid #c28c11 !important;
     border-bottom: none !important;
-    box-shadow: inset 0px 2px 5px rgba(255,255,255,0.5), 5px -5px 12px rgba(0,0,0,0.8) !important;
-    transform: translateY(-5px);
-    z-index: 10;
 }
-/* Tab Text Size */
-button[data-baseweb="tab"] div[data-testid="stMarkdownContainer"] p {
-    font-size: 16px !important; /* Made Tabs Font Size 16 */
-    color: inherit !important;
+button[data-baseweb="tab"][aria-selected="true"] p {
+    color: #000000 !important;
 }
+/* Hide default red line under tabs */
+div[data-baseweb="tab-highlight"] { display: none !important; }
 
-/* Metric Cards Styling */
+/* Metric Cards */
 div[data-testid="metric-container"] {
     background: linear-gradient(145deg, #115e5e, #0d4a4a) !important;
-    border: 1px solid #083b3c !important;
-    padding: 15px 20px !important;
-    border-radius: 8px !important;
-    box-shadow: 4px 4px 10px rgba(0,0,0,0.6), inset 1px 1px 2px rgba(255,255,255,0.1) !important;
     border-left: 6px solid #f7b731 !important;
-}
-
-/* Form Inputs and Dropdowns */
-input, textarea, div[data-baseweb="select"] > div {
-    background-color: #f0f8f8 !important;
-    color: #000000 !important;
-    border-radius: 5px !important;
-    border: none !important;
-    font-size: 14px !important;
-}
-ul[data-baseweb="menu"] { background-color: #ffffff !important; }
-ul[data-baseweb="menu"] li { color: #000000 !important; font-weight: bold !important; }
-
-/* Dataframes */
-[data-testid="stDataFrame"] { background-color: #ffffff !important; border-radius: 5px; overflow: hidden; }
-[data-testid="stDataFrame"] div, [data-testid="stDataFrame"] span { color: #000000 !important; }
-[data-testid="stDataFrame"] th { background-color: #115e5e !important; color: #ffffff !important; font-size: 12px !important;}
-
-/* Registration Box Border */
-.reg-box {
-    background-color: #0a494a;
-    padding: 30px;
-    border-radius: 12px;
-    border: 2px solid #115e5e;
-    box-shadow: 0px 8px 16px rgba(0,0,0,0.6);
+    padding: 15px !important;
+    border-radius: 8px !important;
+    box-shadow: 4px 4px 10px rgba(0,0,0,0.5) !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -605,27 +575,22 @@ with col_logo:
 with col_title:
     st.title("🎓 Superior College Okara - Management System")
 
-# Remember Me Load Logic
-saved_username = ""
-if os.path.exists('saved_username.txt'):
-    try:
-        with open('saved_username.txt', 'r') as f:
-            saved_username = f.read().strip()
-    except: pass
+# Ensure remember me variable exists
+if 'saved_username' not in st.session_state:
+    st.session_state.saved_username = load_data('saved_username_db', "")
 
 if not st.session_state.logged_in:
     tab1, tab2 = st.tabs(["Login", "Admin Sign Up"])
     with tab1:
         l1, l2, l3 = st.columns([1, 2, 1])
         with l2:
-            st.markdown('<div class="reg-box">', unsafe_allow_html=True)
             st.subheader("Login to Portal")
             msg_log = st.empty()
             
             # Form fields
-            l_user = st.text_input("Username", value=saved_username)
-            l_pass = st.text_input("Password", type="password") # The eye icon is built-in with type="password"
-            rem = st.checkbox("Remember Me", value=bool(saved_username))
+            l_user = st.text_input("Username", value=st.session_state.saved_username)
+            l_pass = st.text_input("Password", type="password")
+            rem = st.checkbox("Remember Me", value=bool(st.session_state.saved_username))
             
             if st.button("Login", use_container_width=True):
                 found = False
@@ -635,20 +600,17 @@ if not st.session_state.logged_in:
                         st.session_state.current_user = u
                         found = True
                         
-                        # Remember Me Logic
                         if rem:
-                            with open('saved_username.txt', 'w') as f: f.write(l_user)
+                            save_data('saved_username_db', l_user)
                         else:
-                            if os.path.exists('saved_username.txt'): os.remove('saved_username.txt')
+                            save_data('saved_username_db', "")
                             
                         st.rerun()
                 if not found: msg_log.error("Invalid Credentials!")
-            st.markdown('</div>', unsafe_allow_html=True)
             
     with tab2:
         r1, r2, r3 = st.columns([1, 2, 1])
         with r2:
-            st.markdown('<div class="reg-box">', unsafe_allow_html=True)
             st.subheader("Admin Only Registration")
             msg_reg = st.empty()
             role = st.selectbox("Role", ["Principal", "Vice Principal", "Controller of Examinations"])
@@ -671,7 +633,6 @@ if not st.session_state.logged_in:
                     st.session_state.users_db.append(user)
                     save_data('users_db', st.session_state.users_db)
                     msg_reg.success("Admin registered! Please Login.")
-            st.markdown('</div>', unsafe_allow_html=True)
 
 else:
     user = st.session_state.current_user
