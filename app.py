@@ -6,12 +6,41 @@ import pandas as pd
 from fpdf import FPDF
 import tempfile
 
-# --- FIREBASE CLOUD DATABASE ---
+# --- FIREBASE MODULES ---
 import firebase_admin
-from firebase_admin import credentials, db
+from firebase_admin import credentials
+from firebase_admin import db
 
 # --- Page Config ---
 st.set_page_config(page_title="Superior College Okara Portal", layout="wide", page_icon="image_500c0a.png")
+
+# ==========================================
+# FIREBASE DATABASE CONNECTION
+# ==========================================
+# ⚠️ اپنا فائر بیس لنک نیچے والی لائن میں ضرور ڈالیں:
+FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/" 
+
+if not firebase_admin._apps:
+    try:
+        cred = credentials.Certificate("firebase_key.json")
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': FIREBASE_URL
+        })
+    except Exception as e:
+        st.error(f"Firebase Connection Error: {e}")
+
+def load_data(node_name, default_val=[]):
+    try:
+        data = db.reference(node_name).get()
+        return data if data is not None else default_val
+    except:
+        return default_val
+
+def save_data(node_name, data):
+    try:
+        db.reference(node_name).set(data)
+    except Exception as e:
+        st.error(f"Save Error: {e}")
 
 # --- Custom CSS for Professional Look & Cards ---
 st.markdown("""
@@ -33,39 +62,8 @@ if os.path.exists("image_500c0a.png"):
     st.sidebar.image("image_500c0a.png", use_container_width=True)
 
 # ==========================================
-# FIREBASE INITIALIZATION & DATA HANDLING
+# INITIALIZE CLOUD DATA
 # ==========================================
-if not firebase_admin._apps:
-    try:
-        cred = credentials.Certificate('firebase_key.json')
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/'
-        })
-    except Exception as e:
-        st.error(f"Firebase Connection Error: Please make sure 'firebase_key.json' is in the folder. Details: {e}")
-
-def load_data(node_name, default_val=[]):
-    try:
-        ref = db.reference(node_name)
-        data = ref.get()
-        if data is None: return default_val
-        
-        if isinstance(default_val, list):
-            if isinstance(data, dict): return [v for k, v in data.items()]
-            elif isinstance(data, list): return [x for x in data if x is not None]
-            return data
-        return data
-    except:
-        return default_val
-
-def save_data(node_name, data):
-    try:
-        ref = db.reference(node_name)
-        ref.set(data)
-    except Exception as e:
-        st.error(f"Cloud Save Error: {e}")
-
-# Default Dynamic Structure
 default_settings = {
     "classes": ["11th", "12th"],
     "courses": ["F.Sc (Pre-Medical)", "F.Sc (Pre-Engineering)", "ICS", "F.A", "F.A (IT)", "DIT"],
@@ -74,7 +72,6 @@ default_settings = {
     "subjects": ["Urdu", "English", "Islamyat", "Tarjmatul Quran", "Pakistan Studies", "Physics", "Chemistry", "Mathematics", "Biology", "Computer", "Economics", "Statistics", "Education", "Civics", "Sociology", "Physical Education", "Fine Arts", "Psychology"]
 }
 
-# Load data directly from Firebase Cloud
 if 'settings_db' not in st.session_state: st.session_state.settings_db = load_data('settings_db', default_settings)
 if 'users_db' not in st.session_state: st.session_state.users_db = load_data('users_db', [])
 if 'students_db' not in st.session_state: st.session_state.students_db = load_data('students_db', [])
@@ -83,16 +80,9 @@ if 'tests_db' not in st.session_state: st.session_state.tests_db = load_data('te
 if 'marks_db' not in st.session_state: st.session_state.marks_db = load_data('marks_db', [])
 if 'followup_db' not in st.session_state: st.session_state.followup_db = load_data('followup_db', [])
 
-# Local Auto-Login Logic (Remember Me)
 if 'logged_in' not in st.session_state: 
     st.session_state.logged_in = False
     st.session_state.current_user = None
-    if os.path.exists('remember_me.json'):
-        try:
-            with open('remember_me.json', 'r') as f:
-                st.session_state.current_user = json.load(f)
-                st.session_state.logged_in = True
-        except: pass
 
 def check_single_role_exists(role): return any(user['role'] == role for user in st.session_state.users_db)
 def get_class_incharge(class_name, course, branch, section):
@@ -160,6 +150,7 @@ def generate_pdf(df, title, date_str="", class_name="", section="", incharge="")
     pdf = FPDF(orientation='L')
     pdf.add_page()
     if os.path.exists("image_500c0a.png"): pdf.image("image_500c0a.png", x=10, y=8, w=22)
+        
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(0, 8, "SUPERIOR COLLEGE OKARA", 0, 1, 'C')
     pdf.set_font("Arial", 'B', 12)
@@ -202,6 +193,7 @@ def generate_pdf(df, title, date_str="", class_name="", section="", incharge="")
 def draw_single_report_card(pdf, student_info, marks_df, totals):
     pdf.add_page()
     if os.path.exists("image_500c0a.png"): pdf.image("image_500c0a.png", x=10, y=8, w=22)
+        
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(0, 8, "SUPERIOR COLLEGE OKARA", 0, 1, 'C')
     pdf.set_font("Arial", 'B', 12)
@@ -312,9 +304,7 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
             sum_data.append(row)
         
         sum_df = pd.DataFrame(sum_data)
-        sum_df['ROLL NO'] = pd.to_numeric(sum_df['ROLL NO'], errors='coerce')
         sum_df = sum_df.sort_values(by='ROLL NO').reset_index(drop=True)
-        sum_df['ROLL NO'] = sum_df['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
         sum_df.insert(1, 'SR. NO.', range(1, len(sum_df) + 1))
         sum_df.columns = sum_df.columns.str.upper()
         
@@ -340,7 +330,7 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
         
         if view_roll != "-- Select Student --":
             st_marks = [m for m in f_marks if m['roll_no'] == view_roll]
-            st_info_db = next((s for s in st.session_state.students_db if str(s['roll_no']) == str(view_roll) and s.get('class_name')==class_name), {})
+            st_info_db = next((s for s in st.session_state.students_db if s['roll_no'] == view_roll and s.get('class_name')==class_name), {})
             
             c_d1, c_d2 = st.columns(2)
             c_d1.write(f"**STUDENT NAME:** {s_dict[view_roll].upper()}")
@@ -431,7 +421,6 @@ def render_profile_setup(user):
     if user.get('teaching_assignments'):
         st.markdown("#### Current Teaching Assignments")
         df_a = pd.DataFrame(user['teaching_assignments']).rename(columns={'class_name':'CLASS', 'course':'COURSE', 'branch':'BRANCH', 'section':'SECTION', 'subject':'SUBJECT'})
-        df_a.insert(0, 'SR. NO.', range(1, len(df_a) + 1))
         df_a.columns = df_a.columns.str.upper()
         st.table(df_a)
         if st.button("Clear All Assignments (Reset)"):
@@ -547,7 +536,6 @@ if not st.session_state.logged_in:
             msg_log = st.empty()
             l_user = st.text_input("Username")
             l_pass = st.text_input("Password", type="password")
-            rem = st.checkbox("Remember Me")
             if st.button("Login", use_container_width=True):
                 found = False
                 for u in st.session_state.users_db:
@@ -555,8 +543,6 @@ if not st.session_state.logged_in:
                         st.session_state.logged_in = True
                         st.session_state.current_user = u
                         found = True
-                        if rem:
-                            with open('remember_me.json', 'w') as f: json.dump(u, f)
                         st.rerun()
                 if not found: msg_log.error("Invalid Credentials!")
             
@@ -593,7 +579,6 @@ else:
     if c2.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.current_user = None
-        if os.path.exists('remember_me.json'): os.remove('remember_me.json')
         st.rerun()
     st.divider()
 
@@ -706,9 +691,7 @@ else:
                             rep_data.append({"ROLL NO": str(roll), "NAME": s['name'].upper(), "CLASS": a['class_name'], "SECTION": a['section'], "INCHARGE": inc.upper(), "ATTENDED BY": fu.get('spoke_to', 'N/A').upper(), "REASON": fu.get('reason', 'N/A')})
                 if rep_data:
                     df_rep = pd.DataFrame(rep_data)
-                    df_rep['ROLL NO'] = pd.to_numeric(df_rep['ROLL NO'], errors='coerce')
                     df_rep = df_rep.sort_values(by='ROLL NO').reset_index(drop=True)
-                    df_rep['ROLL NO'] = df_rep['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
                     df_rep.insert(0, 'SR. NO.', range(1, len(df_rep) + 1))
                     df_rep.columns = df_rep.columns.str.upper()
                     st.dataframe(df_rep, use_container_width=True)
@@ -721,9 +704,8 @@ else:
                 if tr_st: 
                     df_t = pd.DataFrame(tr_st).rename(columns={'name': 'NAME', 'roll_no': 'ROLL NO', 'class_name': 'CLASS', 'course': 'COURSE', 'section': 'SECTION', 'branch': 'BRANCH', 'contact1': 'CONTACT'})
                     display_t = df_t[['ROLL NO', 'NAME', 'CLASS', 'COURSE', 'SECTION', 'BRANCH', 'CONTACT']]
-                    display_t['ROLL NO'] = pd.to_numeric(display_t['ROLL NO'], errors='coerce')
+                    display_t['ROLL NO'] = display_t['ROLL NO'].astype(str)
                     display_t = display_t.sort_values(by='ROLL NO').reset_index(drop=True)
-                    display_t['ROLL NO'] = display_t['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
                     display_t.insert(0, 'SR. NO.', range(1, len(display_t) + 1))
                     display_t.columns = display_t.columns.str.upper()
                     st.dataframe(display_t, use_container_width=True)
@@ -742,9 +724,8 @@ else:
                 if s_list:
                     df_s = pd.DataFrame(s_list).rename(columns={'name': 'NAME', 'father_name': 'FATHER NAME', 'roll_no': 'ROLL NO', 'contact1': 'CONTACT', 'transport': 'TRANSPORT'})
                     display_s = df_s[['ROLL NO', 'NAME', 'FATHER NAME', 'CONTACT', 'TRANSPORT']]
-                    display_s['ROLL NO'] = pd.to_numeric(display_s['ROLL NO'], errors='coerce')
+                    display_s['ROLL NO'] = display_s['ROLL NO'].astype(str)
                     display_s = display_s.sort_values(by='ROLL NO').reset_index(drop=True)
-                    display_s['ROLL NO'] = display_s['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
                     display_s.insert(0, 'SR. NO.', range(1, len(display_s) + 1))
                     display_s.columns = display_s.columns.str.upper()
                     st.dataframe(display_s, use_container_width=True)
@@ -806,9 +787,8 @@ else:
                     if st_list:
                         df = pd.DataFrame(st_list)[['roll_no', 'name', 'father_name', 'contact1', 'transport']]
                         df.rename(columns={'roll_no':'ROLL NO', 'name':'NAME', 'father_name':'FATHER NAME', 'contact1':'CONTACT', 'transport':'TRANSPORT'}, inplace=True)
-                        df['ROLL NO'] = pd.to_numeric(df['ROLL NO'], errors='coerce')
+                        df['ROLL NO'] = df['ROLL NO'].astype(str)
                         df = df.sort_values(by='ROLL NO').reset_index(drop=True)
-                        df['ROLL NO'] = df['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
                         df.insert(0, 'SR. NO.', range(1, len(df) + 1))
                         df.columns = df.columns.str.upper()
                         st.dataframe(df, use_container_width=True)
@@ -894,10 +874,10 @@ else:
             st.markdown("#### Edit Class Students")
             if my_st:
                 df_my = pd.DataFrame(my_st)
-                edited_st = st.data_editor(df_my, num_rows="dynamic")
+                ed_my = st.data_editor(df_my, num_rows="dynamic")
                 if st.button("Save Edits"):
                     st.session_state.students_db = [s for s in st.session_state.students_db if not (s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br)]
-                    st.session_state.students_db.extend(edited_st.to_dict('records'))
+                    st.session_state.students_db.extend(ed_my.to_dict('records'))
                     save_data('students_db', st.session_state.students_db)
                     st.success("Changes saved!")
                 
@@ -920,12 +900,7 @@ else:
                 msg_att = st.empty()
                 att_d = st.date_input("Attendance Date", date.today())
                 if my_st:
-                    # Sort internally for marking list
-                    for s in my_st:
-                        try: s['sort_roll'] = int(s['roll_no'])
-                        except: s['sort_roll'] = str(s['roll_no'])
-                    my_st_sorted = sorted(my_st, key=lambda x: x['sort_roll'])
-                    
+                    my_st_sorted = sorted(my_st, key=lambda x: str(x['roll_no']))
                     with st.form("att_f"):
                         abs_rolls = []
                         for s in my_st_sorted:
@@ -945,10 +920,10 @@ else:
             if fu_r and fu_r['absent_students']:
                 fu_c1, fu_c2 = st.columns(2)
                 with fu_c1:
-                    for roll in sorted(fu_r['absent_students'], key=lambda x: int(x) if str(x).isdigit() else str(x)):
+                    for roll in sorted(fu_r['absent_students'], key=lambda x: str(x)):
                         s = next((st for st in my_st if str(st['roll_no'])==str(roll)), None)
                         if s:
-                            with st.expander(f"📞 Enter Follow-up: {s['name'].upper()} (Roll: {roll})"):
+                            with st.expander(f"📞 Call: {s['name'].upper()} (Roll: {roll})"):
                                 st.write(f"**Primary Contact:** {s['contact1']}")
                                 with st.form(f"fu_{roll}"):
                                     spoke = st.text_input("Attended By")
