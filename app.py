@@ -16,16 +16,14 @@ from firebase_admin import db
 st.set_page_config(page_title="Superior College Okara Portal", layout="wide", page_icon="image_500c0a.png")
 
 # ==========================================
-# FIREBASE DATABASE CONNECTION
+# FIREBASE DATABASE CONNECTION (FIXED)
 # ==========================================
 FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/"
 
 if not firebase_admin._apps:
     try:
-        key_dict = dict(st.secrets["firebase"])
-        # 💡 یہ لائن شامل کی گئی ہے تاکہ \n کو اصل نئی لائن میں بدلا جا سکے
-        key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-        
+        # پرانا اور محفوظ طریقہ واپس بحال کر دیا گیا ہے
+        key_dict = json.loads(st.secrets["firebase_secret"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {
             'databaseURL': FIREBASE_URL
