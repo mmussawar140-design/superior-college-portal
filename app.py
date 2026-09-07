@@ -52,7 +52,7 @@ def save_data(node_name, data):
         return False
 
 # ==========================================
-# SAFE CSS FOR PREMIUM LOOK
+# SAFE CSS FOR PREMIUM LOOK (UPDATED BUTTONS)
 # ==========================================
 st.markdown("""
 <style>
@@ -75,6 +75,26 @@ input, textarea, div[data-baseweb="select"] > div, div[data-baseweb="select"] sp
     font-weight: bold !important;
 }
 input::placeholder, textarea::placeholder { color: #555555 !important; }
+
+/* 💡 NEW: Solid Button Colors Fix for all devices */
+div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button, div[data-testid="stDownloadButton"] button {
+    background-color: #115e5e !important;
+    color: #ffffff !important;
+    border: 1px solid #f7b731 !important;
+    border-radius: 6px !important;
+}
+div[data-testid="stButton"] button p, div[data-testid="stFormSubmitButton"] button p, div[data-testid="stDownloadButton"] button p {
+    color: #ffffff !important;
+    font-weight: bold !important;
+}
+div[data-testid="stButton"] button:hover, div[data-testid="stFormSubmitButton"] button:hover, div[data-testid="stDownloadButton"] button:hover {
+    background-color: #f7b731 !important;
+    border-color: #ffffff !important;
+}
+div[data-testid="stButton"] button:hover p, div[data-testid="stFormSubmitButton"] button:hover p, div[data-testid="stDownloadButton"] button:hover p {
+    color: #000000 !important;
+}
+
 ul[data-baseweb="menu"] { background-color: #ffffff !important; }
 ul[data-baseweb="menu"] li, ul[data-baseweb="menu"] span { 
     color: #000000 !important; font-weight: bold !important; background-color: transparent !important;
@@ -134,8 +154,13 @@ if 'logged_in' not in st.session_state:
 def check_single_role_exists(role): return any(user['role'] == role for user in st.session_state.users_db)
 def get_class_incharge(class_name, course, branch, section):
     for user in st.session_state.users_db:
-        if user['role'] == 'Class Incharge' and user.get('incharge_class') == class_name and user.get('incharge_course') == course and user.get('incharge_branch') == branch and user.get('incharge_section') == section:
-            return user['name']
+        if user['role'] == 'Class Incharge' and user.get('incharge_class') == class_name and user.get('incharge_course') == course and user.get('incharge_branch') == branch:
+            # 💡 UPDATED: Handle Multiple Sections
+            inc_sec = user.get('incharge_section', [])
+            if isinstance(inc_sec, list) and section in inc_sec:
+                return user['name']
+            elif isinstance(inc_sec, str) and section == inc_sec:
+                return user['name']
     return "Not Assigned"
 
 def fmt_mark(val):
@@ -387,7 +412,7 @@ def render_syllabus_tracker(user, is_admin=False):
         
         if not is_admin:
             st.info("💡 Check the 'COMPLETED' or '❌ DELETE' box below and click Update.")
-            df_syl.insert(0, '❌ DELETE', False) # 💡 NEW: Delete Column
+            df_syl.insert(0, '❌ DELETE', False)
             
             edited_df = st.data_editor(
                 df_syl.drop(columns=['ID']),
@@ -407,7 +432,6 @@ def render_syllabus_tracker(user, is_admin=False):
                     time.sleep(1)
                     st.rerun()
             
-            # Safe Export (Without Delete Column)
             csv_data = generate_csv_with_header_utf8(df_syl.drop(columns=['ID', '❌ DELETE']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
             pdf_data = generate_basic_pdf(df_syl.drop(columns=['ID', 'COMPLETED', '❌ DELETE']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
         else:
@@ -449,7 +473,6 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
             tot = sum([m['total_marks'] for m in r_marks])
             obt = sum([m['obtained_marks'] for m in r_marks])
             perc = round((obt/tot)*100, 2) if tot > 0 else 0
-            # 💡 NEW: Added Delete Column
             row = {"❌ DELETE": False, "SELECT": False, "ROLL NO": str(r), "STUDENT NAME": s_dict[r].upper()}
             for subj in all_subj:
                 sm = next((m for m in r_marks if m['subject'].upper() == subj), None)
@@ -557,7 +580,13 @@ def render_profile_setup(user):
                 with c1: inc_cls = st.selectbox("Class", st.session_state.settings_db['classes'])
                 with c2: inc_crs = st.selectbox("Course", st.session_state.settings_db['courses'])
                 with c3: inc_br = st.selectbox("Branch", st.session_state.settings_db['branches'])
-                with c4: inc_sec = st.selectbox("Section", st.session_state.settings_db['sections'])
+                
+                # 💡 NEW: Multiple Sections Selection for Class Incharge
+                old_sec = user.get('incharge_section', [])
+                if isinstance(old_sec, str): old_sec = [old_sec]
+                def_sec = [s for s in old_sec if s in st.session_state.settings_db['sections']]
+                
+                with c4: inc_sec = st.multiselect("Section(s)", st.session_state.settings_db['sections'], default=def_sec)
                 st.divider()
 
             st.markdown("#### Teaching Assignments (Add subjects you teach)")
@@ -569,27 +598,29 @@ def render_profile_setup(user):
             t_subjs = st.multiselect("Select Subjects You Teach Here", st.session_state.settings_db['subjects'])
             
             if st.form_submit_button("Save & Complete Setup"):
-                user['profile_setup'] = True
-                if is_incharge:
-                    user['incharge_class'] = inc_cls
-                    user['incharge_course'] = inc_crs
-                    user['incharge_branch'] = inc_br
-                    user['incharge_section'] = inc_sec
-                if 'teaching_assignments' not in user: user['teaching_assignments'] = []
-                for s in t_subjs:
-                    assg = {"class_name": t_cls, "course": t_crs, "branch": t_br, "section": t_sec, "subject": s}
-                    if assg not in user['teaching_assignments']: user['teaching_assignments'].append(assg)
-                if save_data('users_db', st.session_state.users_db):
-                    update_user_in_db(user)
-                    st.success("Profile Setup Complete! Redirecting...")
-                    st.rerun()
+                if is_incharge and not inc_sec:
+                    st.error("Please select at least one Section for Incharge.")
+                else:
+                    user['profile_setup'] = True
+                    if is_incharge:
+                        user['incharge_class'] = inc_cls
+                        user['incharge_course'] = inc_crs
+                        user['incharge_branch'] = inc_br
+                        user['incharge_section'] = inc_sec # Saves as List
+                    if 'teaching_assignments' not in user: user['teaching_assignments'] = []
+                    for s in t_subjs:
+                        assg = {"class_name": t_cls, "course": t_crs, "branch": t_br, "section": t_sec, "subject": s}
+                        if assg not in user['teaching_assignments']: user['teaching_assignments'].append(assg)
+                    if save_data('users_db', st.session_state.users_db):
+                        update_user_in_db(user)
+                        st.success("Profile Setup Complete! Redirecting...")
+                        st.rerun()
 
     if user.get('teaching_assignments'):
         st.markdown("#### Current Teaching Assignments")
         df_a = pd.DataFrame(user['teaching_assignments']).rename(columns={'class_name':'CLASS', 'course':'COURSE', 'branch':'BRANCH', 'section':'SECTION', 'subject':'SUBJECT'})
         df_a.columns = df_a.columns.str.upper()
         
-        # 💡 NEW: Delete feature added here
         df_a.insert(0, "❌ DELETE", False)
         ed_a = st.data_editor(df_a, hide_index=True, use_container_width=True)
         
@@ -693,7 +724,6 @@ def render_test_and_marks_module(user):
 # ==========================================
 controller = CookieController()
 
-# Auto-Login Check from Cookies
 if not st.session_state.logged_in:
     auth_user = controller.get("auth_user")
     auth_pass = controller.get("auth_pass")
@@ -849,7 +879,6 @@ else:
                                 st.success("User created!")
                                 st.rerun()
             st.markdown("#### Edit Existing Users")
-            # 💡 NEW: Delete Column for Users
             df_u = pd.DataFrame(st.session_state.users_db)
             if not df_u.empty:
                 df_u.insert(0, "❌ DELETE", False)
@@ -865,7 +894,6 @@ else:
         with t_stu:
             st.subheader("Student Database (Edit / Delete / Promote)")
             if st.session_state.students_db:
-                # 💡 NEW: Delete Column for Students
                 df_stu = pd.DataFrame(st.session_state.students_db)
                 df_stu.insert(0, "❌ DELETE", False)
                 edited_stu = st.data_editor(df_stu, use_container_width=True, hide_index=True)
@@ -923,8 +951,6 @@ else:
                 if rep_data:
                     df_rep = pd.DataFrame(rep_data)
                     df_rep = df_rep.sort_values(by='ROLL NO').reset_index(drop=True)
-                    
-                    # 💡 NEW: Delete option for Follow-ups
                     df_rep.insert(0, '❌ DELETE', False)
                     df_rep.insert(1, 'SR. NO.', range(1, len(df_rep) + 1))
                     df_rep.columns = df_rep.columns.str.upper()
@@ -941,7 +967,7 @@ else:
                                 st.rerun()
 
                     c_am1, c_am2 = st.columns(2)
-                    df_export = df_rep.drop(columns=['❌ DELETE']) # Hide delete column in prints
+                    df_export = df_rep.drop(columns=['❌ DELETE'])
                     with c_am1: st.download_button("Download Report (CSV)", data=generate_csv_with_header(df_export, "COLLEGE ABSENTEE REPORT", rep_date), file_name=f"Absentee_{rep_date}.csv", mime="text/csv")
                     with c_am2: 
                         abs_pdf = generate_pdf(df_export, "COLLEGE ABSENTEE REPORT", rep_date)
@@ -1083,159 +1109,173 @@ else:
 
     # --- CLASS INCHARGE DASHBOARD ---
     elif user['role'] == "Class Incharge":
-        my_cls, my_crs, my_br, my_sec = user.get('incharge_class'), user.get('incharge_course'), user.get('incharge_branch'), user.get('incharge_section')
+        my_cls = user.get('incharge_class')
+        my_crs = user.get('incharge_course')
+        my_br = user.get('incharge_branch')
+        
+        # 💡 NEW: Multiple Sections Logic
+        my_sec_data = user.get('incharge_section', [])
+        if isinstance(my_sec_data, str): my_sec_data = [my_sec_data] # For older accounts
+        
         incharge_name = user['name']
         
-        st.markdown(f"### 📊 Incharge Overview: {my_cls} | {my_sec} ({my_br})")
-        od1, od2 = st.columns([1, 3])
-        ov_date = od1.date_input("Select Date", date.today(), key="ov_inc")
-        my_st = [s for s in st.session_state.students_db if s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br]
-        att_r = next((r for r in st.session_state.attendance_db if r['date']==str(ov_date) and r.get('class_name')==my_cls and r.get('section')==my_sec), None)
-        
-        abs_n = len(att_r['absent_students']) if att_r else 0
-        c1, c2, c3 = st.columns(3)
-        c1.metric("TOTAL STUDENTS", len(my_st))
-        c2.metric("PRESENT", len(my_st) - abs_n if att_r else 0)
-        c3.metric("ABSENT", abs_n)
-        st.divider()
-        
-        t_reg, t_att, t_teach, t_syl, t_rep, t_prof = st.tabs(["📝 Students", "📅 Attendance", "📚 Tests/Marks", "📖 Syllabus Progress", "📈 Results", "⚙️ Setup"])
-        with t_syl: render_syllabus_tracker(user, is_admin=False)
-        
-        with t_reg:
-            rg1, rg2 = st.columns([1, 1])
-            with rg1:
-                st.subheader("Add New Student")
-                msg_reg = st.empty()
-                with st.form("student_registration_form", clear_on_submit=True):
-                    c_1, c_2 = st.columns(2)
-                    s_n = c_1.text_input("Student Name")
-                    s_f = c_2.text_input("Father's Name")
-                    c_3, c_4 = st.columns(2)
-                    s_r = c_3.text_input("Roll Number")
-                    s_tr = c_4.checkbox("Uses Transport")
-                    
-                    c_5, c_6 = st.columns(2)
-                    s_c1 = c_5.text_input("Contact 1", max_chars=11)
-                    s_c2 = c_6.text_input("Contact 2", max_chars=11)
-                    
-                    if st.form_submit_button("Add Student"):
-                        if s_n and s_r:
-                            st.session_state.students_db.append({"class_name": my_cls, "course": my_crs, "branch": my_br, "section": my_sec, "name": s_n, "father_name": s_f, "roll_no": s_r, "contact1": s_c1, "contact2": s_c2, "transport": "Yes" if s_tr else "No"})
-                            if save_data('students_db', st.session_state.students_db):
-                                msg_reg.success(f"{s_n.upper()} Added!")
-                                st.rerun()
-                        else: msg_reg.error("Name and Roll required.")
+        if not my_sec_data:
+            st.warning("براہ کرم '⚙️ Setup' میں جا کر اپنے سیکشنز (Sections) منتخب کریں۔")
+            render_profile_setup(user)
+        else:
+            if len(my_sec_data) > 1:
+                my_sec = st.selectbox("📌 Select Active Section to Manage", my_sec_data)
+            else:
+                my_sec = my_sec_data[0]
+                
+            st.markdown(f"### 📊 Incharge Overview: {my_cls} | {my_sec} ({my_br})")
+            od1, od2 = st.columns([1, 3])
+            ov_date = od1.date_input("Select Date", date.today(), key="ov_inc")
+            my_st = [s for s in st.session_state.students_db if s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br]
+            att_r = next((r for r in st.session_state.attendance_db if r['date']==str(ov_date) and r.get('class_name')==my_cls and r.get('section')==my_sec), None)
             
-            st.markdown("#### Edit Class Students")
-            if my_st:
-                # 💡 NEW: Delete Column for Incharge Students Tab
-                df_my = pd.DataFrame(my_st)
-                df_my.insert(0, "❌ DELETE", False)
-                ed_my = st.data_editor(df_my, use_container_width=True, hide_index=True)
-                
-                if st.button("Save Edits / Delete Selected"):
-                    kept_my = ed_my[ed_my["❌ DELETE"] == False].drop(columns=["❌ DELETE"]).to_dict('records')
-                    st.session_state.students_db = [s for s in st.session_state.students_db if not (s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br)]
-                    st.session_state.students_db.extend(kept_my)
-                    if save_data('students_db', st.session_state.students_db):
-                        st.success("Changes saved!")
-                        time.sleep(1)
-                        st.rerun()
-                
-                df_dl = pd.DataFrame(my_st).rename(columns={'name': 'NAME', 'father_name': 'FATHER NAME', 'roll_no': 'ROLL NO', 'contact1': 'CONTACT', 'transport': 'TRANSPORT'})
-                display_dl = df_dl[['ROLL NO', 'NAME', 'FATHER NAME', 'CONTACT', 'TRANSPORT']]
-                display_dl['ROLL NO'] = pd.to_numeric(display_dl['ROLL NO'], errors='coerce')
-                display_dl = display_dl.sort_values(by='ROLL NO').reset_index(drop=True)
-                display_dl['ROLL NO'] = display_dl['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
-                display_dl.insert(0, 'SR. NO.', range(1, len(display_dl) + 1))
-                display_dl.columns = display_dl.columns.str.upper()
-                
-                c_sdl1, c_sdl2 = st.columns(2)
-                with c_sdl1: st.download_button("Download Class List (CSV)", data=generate_csv_with_header(display_dl, "REGISTERED STUDENTS LIST", date.today(), my_cls, my_sec, incharge_name), file_name=f"Students_{my_cls}_{my_sec}.csv", mime="text/csv")
-                with c_sdl2: 
-                    cl_pdf = generate_pdf(display_dl, "REGISTERED STUDENTS LIST", date.today(), my_cls, my_sec, incharge_name)
-                    if cl_pdf: st.download_button("Download Class List (PDF)", data=cl_pdf, file_name=f"Students_{my_cls}_{my_sec}.pdf", mime="application/pdf")
-
-        with t_att:
-            at1, at2 = st.columns([1, 1])
-            with at1:
-                st.subheader("Mark Daily Attendance")
-                msg_att = st.empty()
-                att_d = st.date_input("Attendance Date", date.today())
-                if my_st:
-                    my_st_sorted = sorted(my_st, key=lambda x: str(x['roll_no']))
-                    with st.form("att_f"):
-                        abs_rolls = []
-                        for s in my_st_sorted:
-                            if st.checkbox(f"{s['roll_no']} - {s['name'].upper()}", key=f"att_{s['roll_no']}"): abs_rolls.append(s['roll_no'])
-                        if st.form_submit_button("Save Attendance", use_container_width=True):
-                            st.session_state.attendance_db.append({"date": str(att_d), "class_name": my_cls, "course": my_crs, "section": my_sec, "branch": my_br, "absent_students": abs_rolls})
-                            if save_data('attendance_db', st.session_state.attendance_db):
-                                msg_att.success("Attendance saved successfully!")
-                                st.rerun()
+            abs_n = len(att_r['absent_students']) if att_r else 0
+            c1, c2, c3 = st.columns(3)
+            c1.metric("TOTAL STUDENTS", len(my_st))
+            c2.metric("PRESENT", len(my_st) - abs_n if att_r else 0)
+            c3.metric("ABSENT", abs_n)
             st.divider()
-            st.subheader("Absentee Follow-up")
-            msg_follow = st.empty()
-            fud1, fud2 = st.columns([1, 2])
-            fu_d = fud1.date_input("Follow-up Date", date.today(), key="fu_inc")
-            fu_r = next((r for r in st.session_state.attendance_db if r['date']==str(fu_d) and r.get('class_name')==my_cls and r.get('section')==my_sec), None)
             
-            if fu_r and fu_r['absent_students']:
-                fu_c1, fu_c2 = st.columns(2)
-                with fu_c1:
-                    for roll in sorted(fu_r['absent_students'], key=lambda x: str(x)):
+            t_reg, t_att, t_teach, t_syl, t_rep, t_prof = st.tabs(["📝 Students", "📅 Attendance", "📚 Tests/Marks", "📖 Syllabus Progress", "📈 Results", "⚙️ Setup"])
+            with t_syl: render_syllabus_tracker(user, is_admin=False)
+            
+            with t_reg:
+                rg1, rg2 = st.columns([1, 1])
+                with rg1:
+                    st.subheader("Add New Student")
+                    msg_reg = st.empty()
+                    with st.form("student_registration_form", clear_on_submit=True):
+                        c_1, c_2 = st.columns(2)
+                        s_n = c_1.text_input("Student Name")
+                        s_f = c_2.text_input("Father's Name")
+                        c_3, c_4 = st.columns(2)
+                        s_r = c_3.text_input("Roll Number")
+                        s_tr = c_4.checkbox("Uses Transport")
+                        
+                        c_5, c_6 = st.columns(2)
+                        s_c1 = c_5.text_input("Contact 1", max_chars=11)
+                        s_c2 = c_6.text_input("Contact 2", max_chars=11)
+                        
+                        if st.form_submit_button("Add Student"):
+                            if s_n and s_r:
+                                st.session_state.students_db.append({"class_name": my_cls, "course": my_crs, "branch": my_br, "section": my_sec, "name": s_n, "father_name": s_f, "roll_no": s_r, "contact1": s_c1, "contact2": s_c2, "transport": "Yes" if s_tr else "No"})
+                                if save_data('students_db', st.session_state.students_db):
+                                    msg_reg.success(f"{s_n.upper()} Added!")
+                                    st.rerun()
+                            else: msg_reg.error("Name and Roll required.")
+                
+                st.markdown("#### Edit Class Students")
+                if my_st:
+                    df_my = pd.DataFrame(my_st)
+                    df_my.insert(0, "❌ DELETE", False)
+                    ed_my = st.data_editor(df_my, use_container_width=True, hide_index=True)
+                    
+                    if st.button("Save Edits / Delete Selected"):
+                        kept_my = ed_my[ed_my["❌ DELETE"] == False].drop(columns=["❌ DELETE"]).to_dict('records')
+                        st.session_state.students_db = [s for s in st.session_state.students_db if not (s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br)]
+                        st.session_state.students_db.extend(kept_my)
+                        if save_data('students_db', st.session_state.students_db):
+                            st.success("Changes saved!")
+                            time.sleep(1)
+                            st.rerun()
+                    
+                    df_dl = pd.DataFrame(my_st).rename(columns={'name': 'NAME', 'father_name': 'FATHER NAME', 'roll_no': 'ROLL NO', 'contact1': 'CONTACT', 'transport': 'TRANSPORT'})
+                    display_dl = df_dl[['ROLL NO', 'NAME', 'FATHER NAME', 'CONTACT', 'TRANSPORT']]
+                    display_dl['ROLL NO'] = pd.to_numeric(display_dl['ROLL NO'], errors='coerce')
+                    display_dl = display_dl.sort_values(by='ROLL NO').reset_index(drop=True)
+                    display_dl['ROLL NO'] = display_dl['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
+                    display_dl.insert(0, 'SR. NO.', range(1, len(display_dl) + 1))
+                    display_dl.columns = display_dl.columns.str.upper()
+                    
+                    c_sdl1, c_sdl2 = st.columns(2)
+                    with c_sdl1: st.download_button("Download Class List (CSV)", data=generate_csv_with_header(display_dl, "REGISTERED STUDENTS LIST", date.today(), my_cls, my_sec, incharge_name), file_name=f"Students_{my_cls}_{my_sec}.csv", mime="text/csv")
+                    with c_sdl2: 
+                        cl_pdf = generate_pdf(display_dl, "REGISTERED STUDENTS LIST", date.today(), my_cls, my_sec, incharge_name)
+                        if cl_pdf: st.download_button("Download Class List (PDF)", data=cl_pdf, file_name=f"Students_{my_cls}_{my_sec}.pdf", mime="application/pdf")
+
+            with t_att:
+                at1, at2 = st.columns([1, 1])
+                with at1:
+                    st.subheader("Mark Daily Attendance")
+                    msg_att = st.empty()
+                    att_d = st.date_input("Attendance Date", date.today())
+                    if my_st:
+                        my_st_sorted = sorted(my_st, key=lambda x: str(x['roll_no']))
+                        with st.form("att_f"):
+                            abs_rolls = []
+                            for s in my_st_sorted:
+                                if st.checkbox(f"{s['roll_no']} - {s['name'].upper()}", key=f"att_{s['roll_no']}"): abs_rolls.append(s['roll_no'])
+                            if st.form_submit_button("Save Attendance", use_container_width=True):
+                                st.session_state.attendance_db.append({"date": str(att_d), "class_name": my_cls, "course": my_crs, "section": my_sec, "branch": my_br, "absent_students": abs_rolls})
+                                if save_data('attendance_db', st.session_state.attendance_db):
+                                    msg_att.success("Attendance saved successfully!")
+                                    st.rerun()
+                st.divider()
+                st.subheader("Absentee Follow-up")
+                msg_follow = st.empty()
+                fud1, fud2 = st.columns([1, 2])
+                fu_d = fud1.date_input("Follow-up Date", date.today(), key="fu_inc")
+                fu_r = next((r for r in st.session_state.attendance_db if r['date']==str(fu_d) and r.get('class_name')==my_cls and r.get('section')==my_sec), None)
+                
+                if fu_r and fu_r['absent_students']:
+                    fu_c1, fu_c2 = st.columns(2)
+                    with fu_c1:
+                        for roll in sorted(fu_r['absent_students'], key=lambda x: str(x)):
+                            s = next((st for st in my_st if str(st['roll_no'])==str(roll)), None)
+                            if s:
+                                with st.expander(f"📞 Call: {s['name'].upper()} (Roll: {roll})"):
+                                    st.write(f"**Primary Contact:** {s['contact1']}")
+                                    with st.form(f"fu_{roll}"):
+                                        spoke = st.text_input("Attended By")
+                                        rsn = st.text_area("Reason")
+                                        if st.form_submit_button("Save"):
+                                            st.session_state.followup_db.append({"date": str(fu_d), "class_name": my_cls, "section": my_sec, "branch": my_br, "roll_no": roll, "spoke_to": spoke, "reason": rsn})
+                                            if save_data('followup_db', st.session_state.followup_db):
+                                                msg_follow.success("Done!")
+                    
+                    st.markdown("#### Today's Follow-up Summary")
+                    sum_d = []
+                    for roll in fu_r['absent_students']:
                         s = next((st for st in my_st if str(st['roll_no'])==str(roll)), None)
                         if s:
-                            with st.expander(f"📞 Call: {s['name'].upper()} (Roll: {roll})"):
-                                st.write(f"**Primary Contact:** {s['contact1']}")
-                                with st.form(f"fu_{roll}"):
-                                    spoke = st.text_input("Attended By")
-                                    rsn = st.text_area("Reason")
-                                    if st.form_submit_button("Save"):
-                                        st.session_state.followup_db.append({"date": str(fu_d), "class_name": my_cls, "section": my_sec, "branch": my_br, "roll_no": roll, "spoke_to": spoke, "reason": rsn})
-                                        if save_data('followup_db', st.session_state.followup_db):
-                                            msg_follow.success("Done!")
-                
-                st.markdown("#### Today's Follow-up Summary")
-                sum_d = []
-                for roll in fu_r['absent_students']:
-                    s = next((st for st in my_st if str(st['roll_no'])==str(roll)), None)
-                    if s:
-                        f_rec = next((f for f in st.session_state.followup_db if f['date']==str(fu_d) and str(f['roll_no'])==str(roll) and f.get('class_name')==my_cls), {})
-                        sum_d.append({"ROLL NO": str(roll), "NAME": s['name'].upper(), "CONTACT": s['contact1'], "ATTENDED BY": f_rec.get('spoke_to', 'Pending').upper(), "REASON": f_rec.get('reason', 'Pending')})
-                if sum_d:
-                    df_sum = pd.DataFrame(sum_d)
-                    df_sum['ROLL NO'] = pd.to_numeric(df_sum['ROLL NO'], errors='coerce')
-                    df_sum = df_sum.sort_values(by='ROLL NO').reset_index(drop=True)
-                    
-                    # 💡 NEW: Delete Column for Follow-up
-                    df_sum.insert(0, '❌ DELETE', False)
-                    df_sum.insert(1, 'SR. NO.', range(1, len(df_sum) + 1))
-                    df_sum.columns = df_sum.columns.str.upper()
-                    
-                    edited_sum = st.data_editor(df_sum, use_container_width=True, hide_index=True)
-                    del_rolls_fu = edited_sum[edited_sum["❌ DELETE"] == True]["ROLL NO"].tolist()
-                    
-                    if del_rolls_fu:
-                        if st.button("🗑️ Delete Selected Follow-ups"):
-                            st.session_state.followup_db = [f for f in st.session_state.followup_db if not (str(f['roll_no']) in del_rolls_fu and f['date']==str(fu_d) and f.get('class_name')==my_cls)]
-                            if save_data('followup_db', st.session_state.followup_db):
-                                st.success("Deleted!")
-                                time.sleep(1)
-                                st.rerun()
+                            f_rec = next((f for f in st.session_state.followup_db if f['date']==str(fu_d) and str(f['roll_no'])==str(roll) and f.get('class_name')==my_cls), {})
+                            sum_d.append({"ROLL NO": str(roll), "NAME": s['name'].upper(), "CONTACT": s['contact1'], "ATTENDED BY": f_rec.get('spoke_to', 'Pending').upper(), "REASON": f_rec.get('reason', 'Pending')})
+                    if sum_d:
+                        df_sum = pd.DataFrame(sum_d)
+                        df_sum['ROLL NO'] = pd.to_numeric(df_sum['ROLL NO'], errors='coerce')
+                        df_sum = df_sum.sort_values(by='ROLL NO').reset_index(drop=True)
+                        
+                        df_sum.insert(0, '❌ DELETE', False)
+                        df_sum.insert(1, 'SR. NO.', range(1, len(df_sum) + 1))
+                        df_sum.columns = df_sum.columns.str.upper()
+                        
+                        edited_sum = st.data_editor(df_sum, use_container_width=True, hide_index=True)
+                        del_rolls_fu = edited_sum[edited_sum["❌ DELETE"] == True]["ROLL NO"].tolist()
+                        
+                        if del_rolls_fu:
+                            if st.button("🗑️ Delete Selected Follow-ups"):
+                                st.session_state.followup_db = [f for f in st.session_state.followup_db if not (str(f['roll_no']) in del_rolls_fu and f['date']==str(fu_d) and f.get('class_name')==my_cls)]
+                                if save_data('followup_db', st.session_state.followup_db):
+                                    st.success("Deleted!")
+                                    time.sleep(1)
+                                    st.rerun()
 
-                    c_f1, c_f2 = st.columns(2)
-                    df_export = df_sum.drop(columns=['❌ DELETE']) # Hide delete column in prints
-                    with c_f1: st.download_button("Download Summary (CSV)", data=generate_csv_with_header(df_export, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name), file_name=f"Followup_{fu_d}.csv", mime="text/csv")
-                    with c_f2: 
-                        fu_pdf = generate_pdf(df_export, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name)
-                        if fu_pdf: st.download_button("Download Summary (PDF)", data=fu_pdf, file_name=f"Followup_{fu_d}.pdf", mime="application/pdf")
-            elif fu_r: st.success("No absentees!")
-            else: st.warning("Attendance not marked.")
-            
-        with t_teach: render_test_and_marks_module(user)
-        with t_rep: 
-            sec_m = [m for m in st.session_state.marks_db if m.get('class_name')==my_cls and m.get('section')==my_sec and m.get('branch')==my_br]
-            render_report_card_module(sec_m, my_cls, my_crs, my_br, my_sec)
-        with t_prof: render_profile_setup(user)
+                        c_f1, c_f2 = st.columns(2)
+                        df_export = df_sum.drop(columns=['❌ DELETE'])
+                        with c_f1: st.download_button("Download Summary (CSV)", data=generate_csv_with_header(df_export, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name), file_name=f"Followup_{fu_d}.csv", mime="text/csv")
+                        with c_f2: 
+                            fu_pdf = generate_pdf(df_export, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name)
+                            if fu_pdf: st.download_button("Download Summary (PDF)", data=fu_pdf, file_name=f"Followup_{fu_d}.pdf", mime="application/pdf")
+                elif fu_r: st.success("No absentees!")
+                else: st.warning("Attendance not marked.")
+                
+            with t_teach: render_test_and_marks_module(user)
+            with t_rep: 
+                sec_m = [m for m in st.session_state.marks_db if m.get('class_name')==my_cls and m.get('section')==my_sec and m.get('branch')==my_br]
+                render_report_card_module(sec_m, my_cls, my_crs, my_br, my_sec)
+            with t_prof: render_profile_setup(user)
