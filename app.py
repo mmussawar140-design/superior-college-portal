@@ -218,7 +218,7 @@ def get_section_options(cls_name, crs_name, br_name):
 # EXPORT GENERATORS
 # ==========================================
 def safe_pdf_str(text):
-    try: return str(text).encode('latin-1', 'replace').decode('latin-1')
+    try: return text.encode('latin-1', 'replace').decode('latin-1')
     except: return ""
 
 def generate_csv_with_header_utf8(df, title, meta_info=""):
@@ -239,12 +239,12 @@ def generate_basic_pdf(df, title, meta_info=""):
         col_widths = [15] + [(260) / len(df.columns)] * (len(df.columns) - 1)
         pdf.set_font("Arial", 'B', 8)
         for i, h in enumerate(df.columns): 
-            pdf.cell(col_widths[i], 8, safe_pdf_str(h)[:15], 1, 0, 'C')
+            pdf.cell(col_widths[i], 8, safe_pdf_str(str(h))[:15], 1, 0, 'C')
         pdf.ln()
         pdf.set_font("Arial", '', 8)
         for idx, row in df.iterrows():
             for i, val in enumerate(row):
-                t_val = safe_pdf_str(val)[:45] + '...' if len(str(val)) > 45 else safe_pdf_str(val)
+                t_val = safe_pdf_str(str(val))[:45] + '...' if len(str(val)) > 45 else safe_pdf_str(str(val))
                 pdf.cell(col_widths[i], 8, t_val, 1, 0, 'C')
             pdf.ln()
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
@@ -293,12 +293,12 @@ def generate_pdf(df, title, date_str="", class_name="", section="", incharge="")
             dyn_w = rem_w / dyn_cols
             col_widths = [dyn_w if w == 0 else w for w in col_widths]
         pdf.set_font("Arial", 'B', 8)
-        for i, h in enumerate(df.columns): pdf.cell(col_widths[i], 8, safe_pdf_str(h)[:15], 1, 0, 'C')
+        for i, h in enumerate(df.columns): pdf.cell(col_widths[i], 8, safe_pdf_str(str(h))[:15], 1, 0, 'C')
         pdf.ln()
         pdf.set_font("Arial", '', 8)
         for idx, row in df.iterrows():
             for i, val in enumerate(row):
-                t_val = safe_pdf_str(val)[:35] + '...' if len(str(val)) > 35 else safe_pdf_str(val)
+                t_val = safe_pdf_str(str(val))[:35] + '...' if len(str(val)) > 35 else safe_pdf_str(str(val))
                 pdf.cell(col_widths[i], 8, t_val, 1, 0, 'L' if str(df.columns[i]).upper() in ["STUDENT NAME", "NAME"] else 'C')
             pdf.ln()
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
@@ -336,17 +336,17 @@ def draw_single_report_card(pdf, student_info, marks_df, totals):
     pdf.ln()
     pdf.set_font("Arial", '', 9)
     for _, row in marks_df.iterrows():
-        pdf.cell(col_widths[0], 8, safe_pdf_str(row['SR. NO.']), 1, 0, 'C')
-        pdf.cell(col_widths[1], 8, safe_pdf_str(row['SUBJECT']).upper(), 1, 0, 'L')
-        pdf.cell(col_widths[2], 8, safe_pdf_str(row['TEACHER']).upper(), 1, 0, 'L')
-        pdf.cell(col_widths[3], 8, safe_pdf_str(row['TOTAL MARKS']), 1, 0, 'C')
-        pdf.cell(col_widths[4], 8, safe_pdf_str(row['OBTAINED MARKS']), 1, 0, 'C')
-        pdf.cell(col_widths[5], 8, safe_pdf_str(row['PERCENTAGE']), 1, 1, 'C')
+        pdf.cell(col_widths[0], 8, safe_pdf_str(str(row['SR. NO.'])), 1, 0, 'C')
+        pdf.cell(col_widths[1], 8, safe_pdf_str(str(row['SUBJECT'])).upper(), 1, 0, 'L')
+        pdf.cell(col_widths[2], 8, safe_pdf_str(str(row['TEACHER'])).upper(), 1, 0, 'L')
+        pdf.cell(col_widths[3], 8, safe_pdf_str(str(row['TOTAL MARKS'])), 1, 0, 'C')
+        pdf.cell(col_widths[4], 8, safe_pdf_str(str(row['OBTAINED MARKS'])), 1, 0, 'C')
+        pdf.cell(col_widths[5], 8, safe_pdf_str(str(row['PERCENTAGE'])), 1, 1, 'C')
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(col_widths[0]+col_widths[1]+col_widths[2], 8, "GRAND TOTAL", 1, 0, 'R', fill=True)
-    pdf.cell(col_widths[3], 8, safe_pdf_str(totals['TOTAL MARKS']), 1, 0, 'C', fill=True)
-    pdf.cell(col_widths[4], 8, safe_pdf_str(totals['OBTAINED MARKS']), 1, 0, 'C', fill=True)
-    pdf.cell(col_widths[5], 8, safe_pdf_str(totals['PERCENTAGE']), 1, 1, 'C', fill=True)
+    pdf.cell(col_widths[3], 8, safe_pdf_str(str(totals['TOTAL MARKS'])), 1, 0, 'C', fill=True)
+    pdf.cell(col_widths[4], 8, safe_pdf_str(str(totals['OBTAINED MARKS'])), 1, 0, 'C', fill=True)
+    pdf.cell(col_widths[5], 8, safe_pdf_str(str(totals['PERCENTAGE'])), 1, 1, 'C', fill=True)
 
 def generate_bulk_report_cards(roll_nos, marks_list, class_name, course, branch, section, test_name, test_month):
     try:
@@ -586,7 +586,6 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
                 single_pdf = generate_bulk_report_cards([view_roll], f_marks, class_name, course, branch, section, t_type, t_month)
                 if single_pdf: st.download_button("Download Report (PDF)", data=single_pdf, file_name=f"ReportCard_{view_roll}.pdf", mime="application/pdf", type="primary")
 
-# 💡 UPDATED: Update User Function with old username check
 def update_user_in_db(user_dict, old_username=None):
     target_usr = old_username if old_username else user_dict['username']
     for i, u in enumerate(st.session_state.users_db):
@@ -665,7 +664,6 @@ def render_profile_setup(user):
                 update_user_in_db(user)
                 st.rerun()
 
-    # 💡 NEW: CHANGE USERNAME & PASSWORD SECTION
     st.divider()
     st.subheader("🔐 Account Settings (Change Login Credentials)")
     with st.form("change_credentials_form"):
@@ -1190,7 +1188,12 @@ else:
             my_st = [s for s in st.session_state.students_db if s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br]
             att_r = next((r for r in st.session_state.attendance_db if r['date']==str(ov_date) and r.get('class_name')==my_cls and r.get('section')==my_sec), None)
             
-            abs_n = len(att_r['absent_students']) if att_r else 0
+            # 💡 FIX: Ignore ghost records of deleted students in attendance count
+            abs_n = 0
+            if att_r and att_r.get('absent_students'):
+                valid_rolls = [str(s['roll_no']) for s in my_st]
+                abs_n = len([r for r in att_r['absent_students'] if str(r) in valid_rolls])
+            
             c1, c2, c3 = st.columns(3)
             c1.metric("TOTAL STUDENTS", len(my_st))
             c2.metric("PRESENT", len(my_st) - abs_n if att_r else 0)
