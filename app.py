@@ -160,7 +160,7 @@ if os.path.exists("image_500c0a.png"):
     st.sidebar.image("image_500c0a.png", use_container_width=True)
 
 # ==========================================
-# INITIALIZE CLOUD DATA
+# INITIALIZE CLOUD DATA & UI KEY
 # ==========================================
 default_settings = {
     "classes": ["11th", "12th"],
@@ -170,6 +170,10 @@ default_settings = {
     "subjects": ["Urdu", "English", "Islamyat", "Tarjmatul Quran", "Pakistan Studies", "Physics", "Chemistry", "Mathematics", "Biology", "Computer", "Economics", "Statistics", "Education", "Civics", "Sociology", "Physical Education", "Fine Arts", "Psychology"],
     "months": ["August", "September", "October", "November", "December", "January", "February", "March", "April", "May"]
 }
+
+# 💡 NEW: UI Reset Key to force unhide columns
+if 'ui_refresh_key' not in st.session_state:
+    st.session_state.ui_refresh_key = 0
 
 for key in ['settings_db', 'users_db', 'students_db', 'attendance_db', 'tests_db', 'marks_db', 'followup_db', 'syllabus_db']:
     if key not in st.session_state:
@@ -442,7 +446,8 @@ def render_syllabus_tracker(user, is_admin=False):
             edited_df = st.data_editor(
                 df_syl.drop(columns=['ID']),
                 column_config={"COMPLETED": st.column_config.CheckboxColumn("COMPLETED", default=False), "❌ DELETE": st.column_config.CheckboxColumn("❌ DELETE", default=False)},
-                disabled=["MONTH", "WEEK", "SYLLABUS / TOPICS"], hide_index=True, use_container_width=True
+                disabled=["MONTH", "WEEK", "SYLLABUS / TOPICS"], hide_index=True, use_container_width=True,
+                key=f"syl_tab_{st.session_state.ui_refresh_key}" # 💡 NEW: UI Reset Key
             )
             if st.button("Update Progress / Delete Selected"):
                 for i, row in edited_df.iterrows():
@@ -515,7 +520,7 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
         st.markdown("#### Complete Class Result Table")
         dis_cols = ["SR. NO.", "ROLL NO", "STUDENT NAME", "TOTAL (MAX)", "TOTAL (OBT)", "PERCENTAGE"] + all_subj
         
-        edited_df = st.data_editor(sum_df, column_config={"SELECT": st.column_config.CheckboxColumn("SELECT", default=False), "❌ DELETE": st.column_config.CheckboxColumn("❌ DELETE", default=False)}, disabled=dis_cols, hide_index=True, use_container_width=True)
+        edited_df = st.data_editor(sum_df, column_config={"SELECT": st.column_config.CheckboxColumn("SELECT", default=False), "❌ DELETE": st.column_config.CheckboxColumn("❌ DELETE", default=False)}, disabled=dis_cols, hide_index=True, use_container_width=True, key=f"res_tab_{st.session_state.ui_refresh_key}") # 💡 NEW: UI Reset Key
         
         sel_rolls = edited_df[edited_df["SELECT"] == True]["ROLL NO"].tolist()
         del_rolls = edited_df[edited_df["❌ DELETE"] == True]["ROLL NO"].tolist()
@@ -647,7 +652,7 @@ def render_profile_setup(user):
         df_a.columns = df_a.columns.str.upper()
         
         df_a.insert(0, "❌ DELETE", False)
-        ed_a = st.data_editor(df_a, hide_index=True, use_container_width=True)
+        ed_a = st.data_editor(df_a, hide_index=True, use_container_width=True, key=f"teach_tab_{st.session_state.ui_refresh_key}") # 💡 NEW: UI Reset Key
         
         c_btn1, c_btn2 = st.columns(2)
         if c_btn1.button("Update / Delete Selected"):
@@ -871,8 +876,9 @@ else:
     c1, c2, c3 = st.columns([8, 1, 1])
     c1.write(f"### Welcome, {user['name'].upper()} ({user['role']})")
     
-    # 💡 NEW: Refresh Button for all users
     if c2.button("🔄 Refresh"):
+        # 💡 NEW: Update refresh key to force UI reset
+        st.session_state.ui_refresh_key += 1
         for key in ['settings_db', 'users_db', 'students_db', 'attendance_db', 'tests_db', 'marks_db', 'followup_db', 'syllabus_db']:
             if key in st.session_state:
                 del st.session_state[key]
@@ -942,7 +948,7 @@ else:
             df_u = pd.DataFrame(st.session_state.users_db)
             if not df_u.empty:
                 df_u.insert(0, "❌ DELETE", False)
-                edited_u = st.data_editor(df_u, use_container_width=True, hide_index=True)
+                edited_u = st.data_editor(df_u, use_container_width=True, hide_index=True, key=f"adm_u_{st.session_state.ui_refresh_key}") # 💡 NEW: UI Reset Key
                 if st.button("Save User Changes"):
                     kept_u = edited_u[edited_u["❌ DELETE"] == False].drop(columns=["❌ DELETE"]).to_dict('records')
                     st.session_state.users_db = kept_u
@@ -956,7 +962,7 @@ else:
             if st.session_state.students_db:
                 df_stu = pd.DataFrame(st.session_state.students_db)
                 df_stu.insert(0, "❌ DELETE", False)
-                edited_stu = st.data_editor(df_stu, use_container_width=True, hide_index=True)
+                edited_stu = st.data_editor(df_stu, use_container_width=True, hide_index=True, key=f"adm_stu_{st.session_state.ui_refresh_key}") # 💡 NEW: UI Reset Key
                 if st.button("Save Student Changes"):
                     del_stu = edited_stu[edited_stu["❌ DELETE"] == True].to_dict('records')
                     kept_stu = edited_stu[edited_stu["❌ DELETE"] == False].drop(columns=["❌ DELETE"]).to_dict('records')
@@ -975,7 +981,7 @@ else:
             for i, k in enumerate(st.session_state.settings_db.keys()):
                 with cols_map[i % 5]:
                     st.markdown(f"**{k.upper()}**")
-                    ed_set = st.data_editor(pd.DataFrame({k: st.session_state.settings_db[k]}), num_rows="dynamic", key=f"set_{k}")
+                    ed_set = st.data_editor(pd.DataFrame({k: st.session_state.settings_db[k]}), num_rows="dynamic", key=f"set_{k}_{st.session_state.ui_refresh_key}") # 💡 NEW: UI Reset Key
                     st.session_state.settings_db[k] = ed_set[k].dropna().tolist()
             if st.button("Save Structure Changes"):
                 if save_data('settings_db', st.session_state.settings_db):
@@ -1017,7 +1023,7 @@ else:
                     df_rep.insert(1, 'SR. NO.', range(1, len(df_rep) + 1))
                     df_rep.columns = df_rep.columns.str.upper()
                     
-                    edited_sum = st.data_editor(df_rep, use_container_width=True, hide_index=True)
+                    edited_sum = st.data_editor(df_rep, use_container_width=True, hide_index=True, key=f"adm_fu_{st.session_state.ui_refresh_key}") # 💡 NEW: UI Reset Key
                     del_rolls_fu = edited_sum[edited_sum["❌ DELETE"] == True]["ROLL NO"].tolist()
                     
                     if del_rolls_fu:
@@ -1238,7 +1244,7 @@ else:
                 if my_st:
                     df_my = pd.DataFrame(my_st)
                     df_my.insert(0, "❌ DELETE", False)
-                    ed_my = st.data_editor(df_my, use_container_width=True, hide_index=True)
+                    ed_my = st.data_editor(df_my, use_container_width=True, hide_index=True, key=f"inc_stu_{st.session_state.ui_refresh_key}") # 💡 NEW: UI Reset Key
                     
                     if st.button("Save Edits / Delete Selected"):
                         del_my = ed_my[ed_my["❌ DELETE"] == True].to_dict('records')
@@ -1323,7 +1329,7 @@ else:
                         df_sum.insert(1, 'SR. NO.', range(1, len(df_sum) + 1))
                         df_sum.columns = df_sum.columns.str.upper()
                         
-                        edited_sum = st.data_editor(df_sum, use_container_width=True, hide_index=True)
+                        edited_sum = st.data_editor(df_sum, use_container_width=True, hide_index=True, key=f"inc_fu_{st.session_state.ui_refresh_key}") # 💡 NEW: UI Reset Key
                         del_rolls_fu = edited_sum[edited_sum["❌ DELETE"] == True]["ROLL NO"].tolist()
                         
                         if del_rolls_fu:
