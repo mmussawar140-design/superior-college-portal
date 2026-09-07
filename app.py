@@ -51,8 +51,40 @@ def save_data(node_name, data):
         st.error(f"🚨 Cloud Data Save Error: {e}")
         return False
 
+# 💡 NEW: CASCADE DELETE FUNCTION (سلسلہ وار مکمل صفائی)
+def cascade_delete_students(deleted_students):
+    changed = False
+    for d_stu in deleted_students:
+        d_roll = str(d_stu.get('roll_no'))
+        d_cls = str(d_stu.get('class_name'))
+        d_sec = str(d_stu.get('section'))
+        
+        # 1. Clean Marks (رزلٹ ڈیلیٹ کریں)
+        old_m_len = len(st.session_state.marks_db)
+        st.session_state.marks_db = [m for m in st.session_state.marks_db if not (str(m.get('roll_no')) == d_roll and str(m.get('class_name')) == d_cls and str(m.get('section')) == d_sec)]
+        if len(st.session_state.marks_db) != old_m_len: changed = True
+        
+        # 2. Clean Follow-ups (فالو اپ ڈیلیٹ کریں)
+        old_f_len = len(st.session_state.followup_db)
+        st.session_state.followup_db = [f for f in st.session_state.followup_db if not (str(f.get('roll_no')) == d_roll and str(f.get('class_name')) == d_cls and str(f.get('section')) == d_sec)]
+        if len(st.session_state.followup_db) != old_f_len: changed = True
+        
+        # 3. Clean Attendance (پرانی حاضریوں میں سے مٹائیں)
+        for att in st.session_state.attendance_db:
+            if str(att.get('class_name')) == d_cls and str(att.get('section')) == d_sec:
+                orig_abs = att.get('absent_students', [])
+                new_abs = [r for r in orig_abs if str(r) != d_roll]
+                if len(new_abs) != len(orig_abs):
+                    att['absent_students'] = new_abs
+                    changed = True
+                    
+    if changed:
+        save_data('marks_db', st.session_state.marks_db)
+        save_data('followup_db', st.session_state.followup_db)
+        save_data('attendance_db', st.session_state.attendance_db)
+
 # ==========================================
-# SAFE CSS FOR PREMIUM LOOK (UPDATED BUTTONS)
+# SAFE CSS FOR PREMIUM LOOK
 # ==========================================
 st.markdown("""
 <style>
@@ -76,7 +108,6 @@ input, textarea, div[data-baseweb="select"] > div, div[data-baseweb="select"] sp
 }
 input::placeholder, textarea::placeholder { color: #555555 !important; }
 
-/* 💡 NEW: Solid Button Colors Fix for all devices */
 div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button, div[data-testid="stDownloadButton"] button {
     background-color: #115e5e !important;
     color: #ffffff !important;
@@ -155,12 +186,9 @@ def check_single_role_exists(role): return any(user['role'] == role for user in 
 def get_class_incharge(class_name, course, branch, section):
     for user in st.session_state.users_db:
         if user['role'] == 'Class Incharge' and user.get('incharge_class') == class_name and user.get('incharge_course') == course and user.get('incharge_branch') == branch:
-            # 💡 UPDATED: Handle Multiple Sections
             inc_sec = user.get('incharge_section', [])
-            if isinstance(inc_sec, list) and section in inc_sec:
-                return user['name']
-            elif isinstance(inc_sec, str) and section == inc_sec:
-                return user['name']
+            if isinstance(inc_sec, list) and section in inc_sec: return user['name']
+            elif isinstance(inc_sec, str) and section == inc_sec: return user['name']
     return "Not Assigned"
 
 def fmt_mark(val):
@@ -581,7 +609,6 @@ def render_profile_setup(user):
                 with c2: inc_crs = st.selectbox("Course", st.session_state.settings_db['courses'])
                 with c3: inc_br = st.selectbox("Branch", st.session_state.settings_db['branches'])
                 
-                # 💡 NEW: Multiple Sections Selection for Class Incharge
                 old_sec = user.get('incharge_section', [])
                 if isinstance(old_sec, str): old_sec = [old_sec]
                 def_sec = [s for s in old_sec if s in st.session_state.settings_db['sections']]
@@ -606,7 +633,7 @@ def render_profile_setup(user):
                         user['incharge_class'] = inc_cls
                         user['incharge_course'] = inc_crs
                         user['incharge_branch'] = inc_br
-                        user['incharge_section'] = inc_sec # Saves as List
+                        user['incharge_section'] = inc_sec
                     if 'teaching_assignments' not in user: user['teaching_assignments'] = []
                     for s in t_subjs:
                         assg = {"class_name": t_cls, "course": t_crs, "branch": t_br, "section": t_sec, "subject": s}
@@ -898,9 +925,11 @@ else:
                 df_stu.insert(0, "❌ DELETE", False)
                 edited_stu = st.data_editor(df_stu, use_container_width=True, hide_index=True)
                 if st.button("Save Student Changes"):
+                    del_stu = edited_stu[edited_stu["❌ DELETE"] == True].to_dict('records')
                     kept_stu = edited_stu[edited_stu["❌ DELETE"] == False].drop(columns=["❌ DELETE"]).to_dict('records')
                     st.session_state.students_db = kept_stu
                     if save_data('students_db', st.session_state.students_db):
+                        if del_stu: cascade_delete_students(del_stu)
                         st.success("Students Updated!")
                         time.sleep(1)
                         st.rerun()
@@ -1113,9 +1142,8 @@ else:
         my_crs = user.get('incharge_course')
         my_br = user.get('incharge_branch')
         
-        # 💡 NEW: Multiple Sections Logic
         my_sec_data = user.get('incharge_section', [])
-        if isinstance(my_sec_data, str): my_sec_data = [my_sec_data] # For older accounts
+        if isinstance(my_sec_data, str): my_sec_data = [my_sec_data]
         
         incharge_name = user['name']
         
@@ -1176,10 +1204,14 @@ else:
                     ed_my = st.data_editor(df_my, use_container_width=True, hide_index=True)
                     
                     if st.button("Save Edits / Delete Selected"):
+                        del_my = ed_my[ed_my["❌ DELETE"] == True].to_dict('records')
                         kept_my = ed_my[ed_my["❌ DELETE"] == False].drop(columns=["❌ DELETE"]).to_dict('records')
+                        
                         st.session_state.students_db = [s for s in st.session_state.students_db if not (s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br)]
                         st.session_state.students_db.extend(kept_my)
+                        
                         if save_data('students_db', st.session_state.students_db):
+                            if del_my: cascade_delete_students(del_my)
                             st.success("Changes saved!")
                             time.sleep(1)
                             st.rerun()
