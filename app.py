@@ -23,6 +23,9 @@ FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com
 if not firebase_admin._apps:
     try:
         key_dict = dict(st.secrets["firebase"])
+        # 💡 یہ لائن شامل کی گئی ہے تاکہ \n کو اصل نئی لائن میں بدلا جا سکے
+        key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
+        
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {
             'databaseURL': FIREBASE_URL
@@ -40,10 +43,10 @@ def load_data(node_name, default_val=[]):
 def save_data(node_name, data):
     try:
         db.reference(node_name).set(data)
-        return True # اگر کامیابی سے کلاؤڈ پر سیو ہو گیا
+        return True
     except Exception as e:
         st.error(f"🚨 Cloud Data Save Error: {e}")
-        return False # اگر فائر بیس نے ایرر دے دیا
+        return False
 
 # ==========================================
 # SAFE CSS FOR PREMIUM LOOK
@@ -714,13 +717,12 @@ if not st.session_state.logged_in:
                             user = {"name": r_name, "username": r_usr, "password": r_pwd, "role": role, "profile_setup": True}
                             st.session_state.users_db.append(user)
                             
-                            # Safe Cloud Saving Logic
                             if save_data('users_db', st.session_state.users_db):
                                 msg_reg.success(f"✔️ {role} Registered Successfully! Redirecting to Login...")
                                 time.sleep(2)
                                 st.rerun() 
                             else:
-                                st.session_state.users_db.pop() # Remove from RAM if cloud fails
+                                st.session_state.users_db.pop()
             st.markdown('</div>', unsafe_allow_html=True)
 
 else:
