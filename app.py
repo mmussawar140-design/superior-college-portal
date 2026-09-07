@@ -6,6 +6,7 @@ import pandas as pd
 from fpdf import FPDF
 import tempfile
 import time
+from streamlit_cookies_manager import EncryptedCookieManager # 💡 نیا کوکی منیجر
 
 # --- FIREBASE MODULES ---
 import firebase_admin
@@ -16,26 +17,21 @@ from firebase_admin import db
 st.set_page_config(page_title="Superior College Okara Portal", layout="wide", page_icon="image_500c0a.png")
 
 # ==========================================
-# FIREBASE DATABASE CONNECTION (MEMORY FLUSH FIX)
+# FIREBASE DATABASE CONNECTION
 # ==========================================
 FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/"
 
-try:
-    # 💡 1. سب سے اہم کام: Streamlit کی پرانی اور خراب میموری کو زبردستی ڈیلیٹ کریں
-    if firebase_admin._apps:
-        for app_name in list(firebase_admin._apps.keys()):
-            firebase_admin.delete_app(firebase_admin.get_app(app_name))
-
-    # 💡 2. اب بالکل نئی اور صاف چابی Secrets سے لوڈ کریں
-    key_dict = json.loads(st.secrets["firebase_secret"])
-    key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-    
-    cred = credentials.Certificate(key_dict)
-    firebase_admin.initialize_app(cred, {
-        'databaseURL': FIREBASE_URL
-    })
-except Exception as e:
-    st.error(f"🔥 Firebase Connection Failed! Check Streamlit Secrets. Error: {e}")
+if not firebase_admin._apps:
+    try:
+        key_dict = json.loads(st.secrets["firebase_secret"])
+        key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
+        
+        cred = credentials.Certificate(key_dict)
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': FIREBASE_URL
+        })
+    except Exception as e:
+        st.error(f"🔥 Firebase Connection Failed! Check Streamlit Secrets. Error: {e}")
 
 def load_data(node_name, default_val=[]):
     try:
@@ -653,17 +649,30 @@ def render_test_and_marks_module(user):
             else: msg_m.warning("No students in this section.")
         else: msg_m.info("No tests created yet.")
 
+
 # ==========================================
-# MAIN UI & AUTH
+# COOKIES SETUP & MAIN UI
 # ==========================================
+cookies = EncryptedCookieManager(password="SuperiorOkaraPortalSecretKey!")
+if not cookies.ready():
+    st.stop()
+
+# Auto-Login Check from Cookies
+if not st.session_state.logged_in:
+    auth_user = cookies.get("auth_user")
+    auth_pass = cookies.get("auth_pass")
+    if auth_user and auth_pass:
+        for u in st.session_state.users_db:
+            if u.get('username') == auth_user and u.get('password') == auth_pass:
+                st.session_state.logged_in = True
+                st.session_state.current_user = u
+                st.rerun()
+
 col_logo, col_title = st.columns([1, 10])
 with col_logo:
     if os.path.exists("image_500c0a.png"): st.image("image_500c0a.png", width=70)
 with col_title:
     st.title("🎓 Superior College Okara - Management System")
-
-if 'saved_username' not in st.session_state:
-    st.session_state.saved_username = load_data('saved_username_db', "")
 
 if not st.session_state.logged_in:
     tab1, tab2 = st.tabs(["Login", "Admin Sign Up"])
@@ -673,9 +682,10 @@ if not st.session_state.logged_in:
             st.markdown('<div class="reg-box">', unsafe_allow_html=True)
             st.subheader("Login to Portal")
             msg_log = st.empty()
-            l_user = st.text_input("Username", value=st.session_state.saved_username)
+            
+            l_user = st.text_input("Username")
             l_pass = st.text_input("Password", type="password")
-            rem = st.checkbox("Remember Me", value=bool(st.session_state.saved_username))
+            rem = st.checkbox("Keep me logged in (Auto Login)")
             
             if st.button("Login", use_container_width=True):
                 found = False
@@ -684,8 +694,18 @@ if not st.session_state.logged_in:
                         st.session_state.logged_in = True
                         st.session_state.current_user = u
                         found = True
-                        if rem: save_data('saved_username_db', l_user)
-                        else: save_data('saved_username_db', "")
+                        
+                        # Save securely to browser cookies
+                        if rem:
+                            cookies["auth_user"] = l_user
+                            cookies["auth_pass"] = l_pass
+                            cookies.save()
+                        else:
+                            if "auth_user" in cookies:
+                                del cookies["auth_user"]
+                                del cookies["auth_pass"]
+                                cookies.save()
+                                
                         st.rerun()
                 if not found: msg_log.error("Invalid Credentials!")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -733,7 +753,13 @@ else:
     user = st.session_state.current_user
     c1, c2 = st.columns([9, 1])
     c1.write(f"### Welcome, {user['name'].upper()} ({user['role']})")
+    
+    # Safe Logout with Cookies Deletion
     if c2.button("Logout"):
+        if "auth_user" in cookies:
+            del cookies["auth_user"]
+            del cookies["auth_pass"]
+            cookies.save()
         st.session_state.logged_in = False
         st.session_state.current_user = None
         st.rerun()
