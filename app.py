@@ -868,10 +868,17 @@ if not st.session_state.logged_in:
 
 else:
     user = st.session_state.current_user
-    c1, c2 = st.columns([9, 1])
+    c1, c2, c3 = st.columns([8, 1, 1])
     c1.write(f"### Welcome, {user['name'].upper()} ({user['role']})")
     
-    if c2.button("Logout"):
+    # 💡 NEW: Refresh Button for all users
+    if c2.button("🔄 Refresh"):
+        for key in ['settings_db', 'users_db', 'students_db', 'attendance_db', 'tests_db', 'marks_db', 'followup_db', 'syllabus_db']:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.rerun()
+        
+    if c3.button("Logout"):
         if controller.get("auth_user"):
             controller.remove("auth_user")
             controller.remove("auth_pass")
@@ -1188,7 +1195,6 @@ else:
             my_st = [s for s in st.session_state.students_db if s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br]
             att_r = next((r for r in st.session_state.attendance_db if r['date']==str(ov_date) and r.get('class_name')==my_cls and r.get('section')==my_sec), None)
             
-            # 💡 FIX: Ignore ghost records of deleted students in attendance count
             abs_n = 0
             if att_r and att_r.get('absent_students'):
                 valid_rolls = [str(s['roll_no']) for s in my_st]
