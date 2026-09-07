@@ -51,7 +51,7 @@ def save_data(node_name, data):
         st.error(f"🚨 Cloud Data Save Error: {e}")
         return False
 
-# 💡 NEW: CASCADE DELETE FUNCTION (سلسلہ وار مکمل صفائی)
+# CASCADE DELETE FUNCTION
 def cascade_delete_students(deleted_students):
     changed = False
     for d_stu in deleted_students:
@@ -59,17 +59,14 @@ def cascade_delete_students(deleted_students):
         d_cls = str(d_stu.get('class_name'))
         d_sec = str(d_stu.get('section'))
         
-        # 1. Clean Marks (رزلٹ ڈیلیٹ کریں)
         old_m_len = len(st.session_state.marks_db)
         st.session_state.marks_db = [m for m in st.session_state.marks_db if not (str(m.get('roll_no')) == d_roll and str(m.get('class_name')) == d_cls and str(m.get('section')) == d_sec)]
         if len(st.session_state.marks_db) != old_m_len: changed = True
         
-        # 2. Clean Follow-ups (فالو اپ ڈیلیٹ کریں)
         old_f_len = len(st.session_state.followup_db)
         st.session_state.followup_db = [f for f in st.session_state.followup_db if not (str(f.get('roll_no')) == d_roll and str(f.get('class_name')) == d_cls and str(f.get('section')) == d_sec)]
         if len(st.session_state.followup_db) != old_f_len: changed = True
         
-        # 3. Clean Attendance (پرانی حاضریوں میں سے مٹائیں)
         for att in st.session_state.attendance_db:
             if str(att.get('class_name')) == d_cls and str(att.get('section')) == d_sec:
                 orig_abs = att.get('absent_students', [])
@@ -589,9 +586,11 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
                 single_pdf = generate_bulk_report_cards([view_roll], f_marks, class_name, course, branch, section, t_type, t_month)
                 if single_pdf: st.download_button("Download Report (PDF)", data=single_pdf, file_name=f"ReportCard_{view_roll}.pdf", mime="application/pdf", type="primary")
 
-def update_user_in_db(user_dict):
+# 💡 UPDATED: Update User Function with old username check
+def update_user_in_db(user_dict, old_username=None):
+    target_usr = old_username if old_username else user_dict['username']
     for i, u in enumerate(st.session_state.users_db):
-        if u['username'] == user_dict['username']:
+        if u['username'] == target_usr:
             st.session_state.users_db[i] = user_dict
             break
     save_data('users_db', st.session_state.users_db)
@@ -665,6 +664,35 @@ def render_profile_setup(user):
             if save_data('users_db', st.session_state.users_db):
                 update_user_in_db(user)
                 st.rerun()
+
+    # 💡 NEW: CHANGE USERNAME & PASSWORD SECTION
+    st.divider()
+    st.subheader("🔐 Account Settings (Change Login Credentials)")
+    with st.form("change_credentials_form"):
+        c_u, c_p = st.columns(2)
+        new_user_name = c_u.text_input("New Username", value=user.get('username'))
+        new_password = c_p.text_input("New Password", type="password", value=user.get('password'))
+        
+        if st.form_submit_button("Update Username & Password"):
+            if not new_user_name or not new_password:
+                st.error("Fields cannot be empty!")
+            else:
+                conflict = any(u['username'] == new_user_name for u in st.session_state.users_db if u['username'] != user['username'])
+                if conflict:
+                    st.error("Username already taken! Choose another one.")
+                else:
+                    old_usr = user['username']
+                    user['username'] = new_user_name
+                    user['password'] = new_password
+                    update_user_in_db(user, old_username=old_usr)
+                    
+                    if 'controller' in globals() and controller.get("auth_user") == old_usr:
+                        controller.set("auth_user", new_user_name)
+                        controller.set("auth_pass", new_password)
+                        
+                    st.success("Credentials Updated Successfully!")
+                    time.sleep(1)
+                    st.rerun()
 
 def render_test_and_marks_module(user):
     assignments = user.get('teaching_assignments', [])
