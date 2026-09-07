@@ -6,7 +6,7 @@ import pandas as pd
 from fpdf import FPDF
 import tempfile
 import time
-from streamlit_cookies_manager import EncryptedCookieManager # 💡 نیا کوکی منیجر
+from streamlit_cookies_controller import CookieController # 💡 نیا اور اپڈیٹڈ کوکی کنٹرولر
 
 # --- FIREBASE MODULES ---
 import firebase_admin
@@ -21,17 +21,20 @@ st.set_page_config(page_title="Superior College Okara Portal", layout="wide", pa
 # ==========================================
 FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/"
 
-if not firebase_admin._apps:
-    try:
-        key_dict = json.loads(st.secrets["firebase_secret"])
-        key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-        
-        cred = credentials.Certificate(key_dict)
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': FIREBASE_URL
-        })
-    except Exception as e:
-        st.error(f"🔥 Firebase Connection Failed! Check Streamlit Secrets. Error: {e}")
+try:
+    if firebase_admin._apps:
+        for app_name in list(firebase_admin._apps.keys()):
+            firebase_admin.delete_app(firebase_admin.get_app(app_name))
+
+    key_dict = json.loads(st.secrets["firebase_secret"])
+    key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
+    
+    cred = credentials.Certificate(key_dict)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': FIREBASE_URL
+    })
+except Exception as e:
+    st.error(f"🔥 Firebase Connection Failed! Check Streamlit Secrets. Error: {e}")
 
 def load_data(node_name, default_val=[]):
     try:
@@ -653,19 +656,18 @@ def render_test_and_marks_module(user):
 # ==========================================
 # COOKIES SETUP & MAIN UI
 # ==========================================
-cookies = EncryptedCookieManager(password="SuperiorOkaraPortalSecretKey!")
-if not cookies.ready():
-    st.stop()
+controller = CookieController()
 
 # Auto-Login Check from Cookies
 if not st.session_state.logged_in:
-    auth_user = cookies.get("auth_user")
-    auth_pass = cookies.get("auth_pass")
+    auth_user = controller.get("auth_user")
+    auth_pass = controller.get("auth_pass")
     if auth_user and auth_pass:
         for u in st.session_state.users_db:
             if u.get('username') == auth_user and u.get('password') == auth_pass:
                 st.session_state.logged_in = True
                 st.session_state.current_user = u
+                time.sleep(0.5)
                 st.rerun()
 
 col_logo, col_title = st.columns([1, 10])
@@ -695,16 +697,13 @@ if not st.session_state.logged_in:
                         st.session_state.current_user = u
                         found = True
                         
-                        # Save securely to browser cookies
                         if rem:
-                            cookies["auth_user"] = l_user
-                            cookies["auth_pass"] = l_pass
-                            cookies.save()
+                            controller.set("auth_user", l_user)
+                            controller.set("auth_pass", l_pass)
                         else:
-                            if "auth_user" in cookies:
-                                del cookies["auth_user"]
-                                del cookies["auth_pass"]
-                                cookies.save()
+                            if controller.get("auth_user"):
+                                controller.remove("auth_user")
+                                controller.remove("auth_pass")
                                 
                         st.rerun()
                 if not found: msg_log.error("Invalid Credentials!")
@@ -754,12 +753,10 @@ else:
     c1, c2 = st.columns([9, 1])
     c1.write(f"### Welcome, {user['name'].upper()} ({user['role']})")
     
-    # Safe Logout with Cookies Deletion
     if c2.button("Logout"):
-        if "auth_user" in cookies:
-            del cookies["auth_user"]
-            del cookies["auth_pass"]
-            cookies.save()
+        if controller.get("auth_user"):
+            controller.remove("auth_user")
+            controller.remove("auth_pass")
         st.session_state.logged_in = False
         st.session_state.current_user = None
         st.rerun()
