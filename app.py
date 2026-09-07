@@ -6,7 +6,7 @@ import pandas as pd
 from fpdf import FPDF
 import tempfile
 import time
-from streamlit_cookies_controller import CookieController # 💡 نیا اور اپڈیٹڈ کوکی کنٹرولر
+from streamlit_cookies_controller import CookieController
 
 # --- FIREBASE MODULES ---
 import firebase_admin
@@ -386,30 +386,40 @@ def render_syllabus_tracker(user, is_admin=False):
         df_syl.columns = ['MONTH', 'WEEK', 'SYLLABUS / TOPICS', 'COMPLETED', 'ID']
         
         if not is_admin:
-            st.info("💡 Check the 'COMPLETED' box below when you finish teaching a week's syllabus.")
+            st.info("💡 Check the 'COMPLETED' or '❌ DELETE' box below and click Update.")
+            df_syl.insert(0, '❌ DELETE', False) # 💡 NEW: Delete Column
+            
             edited_df = st.data_editor(
                 df_syl.drop(columns=['ID']),
-                column_config={"COMPLETED": st.column_config.CheckboxColumn("COMPLETED", default=False)},
+                column_config={"COMPLETED": st.column_config.CheckboxColumn("COMPLETED", default=False), "❌ DELETE": st.column_config.CheckboxColumn("❌ DELETE", default=False)},
                 disabled=["MONTH", "WEEK", "SYLLABUS / TOPICS"], hide_index=True, use_container_width=True
             )
-            if st.button("Update Progress"):
+            if st.button("Update Progress / Delete Selected"):
                 for i, row in edited_df.iterrows():
                     orig_id = df_syl.iloc[i]['ID']
-                    for s in st.session_state.syllabus_db:
-                        if s['id'] == orig_id: s['completed'] = row['COMPLETED']
+                    if row['❌ DELETE']:
+                        st.session_state.syllabus_db = [s for s in st.session_state.syllabus_db if s['id'] != orig_id]
+                    else:
+                        for s in st.session_state.syllabus_db:
+                            if s['id'] == orig_id: s['completed'] = row['COMPLETED']
                 if save_data('syllabus_db', st.session_state.syllabus_db):
-                    st.success("Progress Updated!")
+                    st.success("Syllabus Updated!")
+                    time.sleep(1)
                     st.rerun()
+            
+            # Safe Export (Without Delete Column)
+            csv_data = generate_csv_with_header_utf8(df_syl.drop(columns=['ID', '❌ DELETE']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
+            pdf_data = generate_basic_pdf(df_syl.drop(columns=['ID', 'COMPLETED', '❌ DELETE']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
         else:
             teacher_name = my_syl[0]['teacher'] if my_syl else "Unknown"
             st.write(f"**Teacher:** {teacher_name}")
             st.dataframe(df_syl.drop(columns=['ID']), hide_index=True, use_container_width=True)
+            csv_data = generate_csv_with_header_utf8(df_syl.drop(columns=['ID']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
+            pdf_data = generate_basic_pdf(df_syl.drop(columns=['ID', 'COMPLETED']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
             
         st.divider()
-        csv_data = generate_csv_with_header_utf8(df_syl.drop(columns=['ID']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
         d1, d2 = st.columns(2)
         d1.download_button("📥 Download Excel/CSV (اردو سپورٹ)", data=csv_data, file_name="Syllabus.csv", mime="text/csv")
-        pdf_data = generate_basic_pdf(df_syl.drop(columns=['ID', 'COMPLETED']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
         if pdf_data:
             d2.download_button("📥 Download PDF (English Only)", data=pdf_data, file_name="Syllabus.pdf", mime="application/pdf")
     else:
@@ -439,7 +449,8 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
             tot = sum([m['total_marks'] for m in r_marks])
             obt = sum([m['obtained_marks'] for m in r_marks])
             perc = round((obt/tot)*100, 2) if tot > 0 else 0
-            row = {"SELECT": False, "ROLL NO": str(r), "STUDENT NAME": s_dict[r].upper()}
+            # 💡 NEW: Added Delete Column
+            row = {"❌ DELETE": False, "SELECT": False, "ROLL NO": str(r), "STUDENT NAME": s_dict[r].upper()}
             for subj in all_subj:
                 sm = next((m for m in r_marks if m['subject'].upper() == subj), None)
                 row[subj] = f"{fmt_mark(sm['obtained_marks'])}/{fmt_mark(sm['total_marks'])}" if sm else "-"
@@ -450,24 +461,33 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
         
         sum_df = pd.DataFrame(sum_data)
         sum_df = sum_df.sort_values(by='ROLL NO').reset_index(drop=True)
-        sum_df.insert(1, 'SR. NO.', range(1, len(sum_df) + 1))
+        sum_df.insert(2, 'SR. NO.', range(1, len(sum_df) + 1))
         sum_df.columns = sum_df.columns.str.upper()
         
         st.markdown("#### Complete Class Result Table")
         dis_cols = ["SR. NO.", "ROLL NO", "STUDENT NAME", "TOTAL (MAX)", "TOTAL (OBT)", "PERCENTAGE"] + all_subj
-        edited_df = st.data_editor(sum_df, column_config={"SELECT": st.column_config.CheckboxColumn("SELECT", default=False)}, disabled=dis_cols, hide_index=True, use_container_width=True)
+        
+        edited_df = st.data_editor(sum_df, column_config={"SELECT": st.column_config.CheckboxColumn("SELECT", default=False), "❌ DELETE": st.column_config.CheckboxColumn("❌ DELETE", default=False)}, disabled=dis_cols, hide_index=True, use_container_width=True)
         
         sel_rolls = edited_df[edited_df["SELECT"] == True]["ROLL NO"].tolist()
+        del_rolls = edited_df[edited_df["❌ DELETE"] == True]["ROLL NO"].tolist()
+        
         c1, c2, c3 = st.columns(3)
         with c1: 
-            pdf_bytes = generate_pdf(sum_df.drop(columns=["SELECT"]), "CLASS RESULT", t_month, class_name, section, incharge_name)
+            pdf_bytes = generate_pdf(sum_df.drop(columns=["SELECT", "❌ DELETE"]), "CLASS RESULT", t_month, class_name, section, incharge_name)
             if pdf_bytes: st.download_button("Download Result (PDF)", data=pdf_bytes, file_name=f"Result_{class_name}_{section}.pdf", mime="application/pdf")
-        with c2: st.download_button("Download Result (Excel)", data=generate_csv_with_header(sum_df.drop(columns=["SELECT"]), "CLASS RESULT", t_month, class_name, section, incharge_name), file_name=f"Result_{class_name}_{section}.csv", mime="text/csv")
+        with c2: st.download_button("Download Result (Excel)", data=generate_csv_with_header(sum_df.drop(columns=["SELECT", "❌ DELETE"]), "CLASS RESULT", t_month, class_name, section, incharge_name), file_name=f"Result_{class_name}_{section}.csv", mime="text/csv")
         with c3:
             if sel_rolls:
                 bulk_pdf = generate_bulk_report_cards(sel_rolls, f_marks, class_name, course, branch, section, t_type, t_month)
                 if bulk_pdf: st.download_button(f"Download Selected Report Cards (PDF)", data=bulk_pdf, file_name="Selected_ReportCards.pdf", mime="application/pdf", type="primary")
-            else: st.button("Select checkboxes to bulk download", disabled=True)
+            elif del_rolls:
+                if st.button("🗑️ Delete Results for Selected", type="primary"):
+                    st.session_state.marks_db = [m for m in st.session_state.marks_db if not (str(m['roll_no']) in del_rolls and m['test_type'] == t_type and get_month_year(m.get('date', '')) == t_month and m['class_name'] == class_name and m['section'] == section)]
+                    if save_data('marks_db', st.session_state.marks_db):
+                        st.success("Deleted successfully!")
+                        time.sleep(1)
+                        st.rerun()
 
         st.divider()
         st.markdown("#### 📄 View Individual Student Report Card")
@@ -488,8 +508,8 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
             c_d2.write(f"**CLASS INCHARGE:** {incharge_name.upper()}")
             
             df_ind = pd.DataFrame(st_marks)
-            if 'percentage' in df_ind.columns:
-                df_ind = df_ind.drop(columns=['percentage'])
+            if 'percentage' in df_ind.columns: df_ind = df_ind.drop(columns=['percentage'])
+            
             df_ind.rename(columns={'subject': 'SUBJECT', 'teacher': 'TEACHER', 'total_marks': 'TOTAL MARKS', 'obtained_marks': 'OBTAINED MARKS'}, inplace=True)
             df_ind['SUBJECT'] = df_ind['SUBJECT'].str.upper()
             df_ind['TEACHER'] = df_ind['TEACHER'].str.upper()
@@ -568,8 +588,21 @@ def render_profile_setup(user):
         st.markdown("#### Current Teaching Assignments")
         df_a = pd.DataFrame(user['teaching_assignments']).rename(columns={'class_name':'CLASS', 'course':'COURSE', 'branch':'BRANCH', 'section':'SECTION', 'subject':'SUBJECT'})
         df_a.columns = df_a.columns.str.upper()
-        st.table(df_a)
-        if st.button("Clear All Assignments (Reset)"):
+        
+        # 💡 NEW: Delete feature added here
+        df_a.insert(0, "❌ DELETE", False)
+        ed_a = st.data_editor(df_a, hide_index=True, use_container_width=True)
+        
+        c_btn1, c_btn2 = st.columns(2)
+        if c_btn1.button("Update / Delete Selected"):
+            kept_a = ed_a[ed_a["❌ DELETE"] == False].drop(columns=["❌ DELETE"])
+            rev_map = {'CLASS':'class_name', 'COURSE':'course', 'BRANCH':'branch', 'SECTION':'section', 'SUBJECT':'subject'}
+            user['teaching_assignments'] = kept_a.rename(columns=rev_map).to_dict('records')
+            if save_data('users_db', st.session_state.users_db):
+                update_user_in_db(user)
+                st.rerun()
+                
+        if c_btn2.button("Clear All Assignments (Reset)"):
             user['teaching_assignments'] = []
             if save_data('users_db', st.session_state.users_db):
                 update_user_in_db(user)
@@ -816,20 +849,33 @@ else:
                                 st.success("User created!")
                                 st.rerun()
             st.markdown("#### Edit Existing Users")
-            edited_u = st.data_editor(pd.DataFrame(st.session_state.users_db), num_rows="dynamic", use_container_width=True)
-            if st.button("Save User Changes"):
-                st.session_state.users_db = edited_u.to_dict('records')
-                if save_data('users_db', st.session_state.users_db):
-                    st.success("Updated!")
+            # 💡 NEW: Delete Column for Users
+            df_u = pd.DataFrame(st.session_state.users_db)
+            if not df_u.empty:
+                df_u.insert(0, "❌ DELETE", False)
+                edited_u = st.data_editor(df_u, use_container_width=True, hide_index=True)
+                if st.button("Save User Changes"):
+                    kept_u = edited_u[edited_u["❌ DELETE"] == False].drop(columns=["❌ DELETE"]).to_dict('records')
+                    st.session_state.users_db = kept_u
+                    if save_data('users_db', st.session_state.users_db):
+                        st.success("Users Updated!")
+                        time.sleep(1)
+                        st.rerun()
 
         with t_stu:
             st.subheader("Student Database (Edit / Delete / Promote)")
             if st.session_state.students_db:
-                edited_stu = st.data_editor(pd.DataFrame(st.session_state.students_db), num_rows="dynamic", use_container_width=True)
+                # 💡 NEW: Delete Column for Students
+                df_stu = pd.DataFrame(st.session_state.students_db)
+                df_stu.insert(0, "❌ DELETE", False)
+                edited_stu = st.data_editor(df_stu, use_container_width=True, hide_index=True)
                 if st.button("Save Student Changes"):
-                    st.session_state.students_db = edited_stu.to_dict('records')
+                    kept_stu = edited_stu[edited_stu["❌ DELETE"] == False].drop(columns=["❌ DELETE"]).to_dict('records')
+                    st.session_state.students_db = kept_stu
                     if save_data('students_db', st.session_state.students_db):
-                        st.success("Updated!")
+                        st.success("Students Updated!")
+                        time.sleep(1)
+                        st.rerun()
             else: st.info("No students registered.")
 
         with t_str:
@@ -877,13 +923,28 @@ else:
                 if rep_data:
                     df_rep = pd.DataFrame(rep_data)
                     df_rep = df_rep.sort_values(by='ROLL NO').reset_index(drop=True)
-                    df_rep.insert(0, 'SR. NO.', range(1, len(df_rep) + 1))
+                    
+                    # 💡 NEW: Delete option for Follow-ups
+                    df_rep.insert(0, '❌ DELETE', False)
+                    df_rep.insert(1, 'SR. NO.', range(1, len(df_rep) + 1))
                     df_rep.columns = df_rep.columns.str.upper()
-                    st.dataframe(df_rep, use_container_width=True)
+                    
+                    edited_sum = st.data_editor(df_rep, use_container_width=True, hide_index=True)
+                    del_rolls_fu = edited_sum[edited_sum["❌ DELETE"] == True]["ROLL NO"].tolist()
+                    
+                    if del_rolls_fu:
+                        if st.button("🗑️ Delete Selected Follow-ups"):
+                            st.session_state.followup_db = [f for f in st.session_state.followup_db if not (str(f['roll_no']) in del_rolls_fu and f['date']==str(rep_date))]
+                            if save_data('followup_db', st.session_state.followup_db):
+                                st.success("Deleted!")
+                                time.sleep(1)
+                                st.rerun()
+
                     c_am1, c_am2 = st.columns(2)
-                    with c_am1: st.download_button("Download Report (CSV)", data=generate_csv_with_header(df_rep, "COLLEGE ABSENTEE REPORT", rep_date), file_name=f"Absentee_{rep_date}.csv", mime="text/csv")
+                    df_export = df_rep.drop(columns=['❌ DELETE']) # Hide delete column in prints
+                    with c_am1: st.download_button("Download Report (CSV)", data=generate_csv_with_header(df_export, "COLLEGE ABSENTEE REPORT", rep_date), file_name=f"Absentee_{rep_date}.csv", mime="text/csv")
                     with c_am2: 
-                        abs_pdf = generate_pdf(df_rep, "COLLEGE ABSENTEE REPORT", rep_date)
+                        abs_pdf = generate_pdf(df_export, "COLLEGE ABSENTEE REPORT", rep_date)
                         if abs_pdf: st.download_button("Download Report (PDF)", data=abs_pdf, file_name=f"Absentee_{rep_date}.pdf", mime="application/pdf")
                 else: st.info("No absentees.")
             with rt3:
@@ -1068,13 +1129,19 @@ else:
             
             st.markdown("#### Edit Class Students")
             if my_st:
+                # 💡 NEW: Delete Column for Incharge Students Tab
                 df_my = pd.DataFrame(my_st)
-                ed_my = st.data_editor(df_my, num_rows="dynamic")
-                if st.button("Save Edits"):
+                df_my.insert(0, "❌ DELETE", False)
+                ed_my = st.data_editor(df_my, use_container_width=True, hide_index=True)
+                
+                if st.button("Save Edits / Delete Selected"):
+                    kept_my = ed_my[ed_my["❌ DELETE"] == False].drop(columns=["❌ DELETE"]).to_dict('records')
                     st.session_state.students_db = [s for s in st.session_state.students_db if not (s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br)]
-                    st.session_state.students_db.extend(ed_my.to_dict('records'))
+                    st.session_state.students_db.extend(kept_my)
                     if save_data('students_db', st.session_state.students_db):
                         st.success("Changes saved!")
+                        time.sleep(1)
+                        st.rerun()
                 
                 df_dl = pd.DataFrame(my_st).rename(columns={'name': 'NAME', 'father_name': 'FATHER NAME', 'roll_no': 'ROLL NO', 'contact1': 'CONTACT', 'transport': 'TRANSPORT'})
                 display_dl = df_dl[['ROLL NO', 'NAME', 'FATHER NAME', 'CONTACT', 'TRANSPORT']]
@@ -1141,14 +1208,28 @@ else:
                     df_sum = pd.DataFrame(sum_d)
                     df_sum['ROLL NO'] = pd.to_numeric(df_sum['ROLL NO'], errors='coerce')
                     df_sum = df_sum.sort_values(by='ROLL NO').reset_index(drop=True)
-                    df_sum['ROLL NO'] = df_sum['ROLL NO'].astype(str).str.replace(".0", "", regex=False)
-                    df_sum.insert(0, 'SR. NO.', range(1, len(df_sum) + 1))
+                    
+                    # 💡 NEW: Delete Column for Follow-up
+                    df_sum.insert(0, '❌ DELETE', False)
+                    df_sum.insert(1, 'SR. NO.', range(1, len(df_sum) + 1))
                     df_sum.columns = df_sum.columns.str.upper()
-                    st.dataframe(df_sum, use_container_width=True)
+                    
+                    edited_sum = st.data_editor(df_sum, use_container_width=True, hide_index=True)
+                    del_rolls_fu = edited_sum[edited_sum["❌ DELETE"] == True]["ROLL NO"].tolist()
+                    
+                    if del_rolls_fu:
+                        if st.button("🗑️ Delete Selected Follow-ups"):
+                            st.session_state.followup_db = [f for f in st.session_state.followup_db if not (str(f['roll_no']) in del_rolls_fu and f['date']==str(fu_d) and f.get('class_name')==my_cls)]
+                            if save_data('followup_db', st.session_state.followup_db):
+                                st.success("Deleted!")
+                                time.sleep(1)
+                                st.rerun()
+
                     c_f1, c_f2 = st.columns(2)
-                    with c_f1: st.download_button("Download Summary (CSV)", data=generate_csv_with_header(df_sum, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name), file_name=f"Followup_{fu_d}.csv", mime="text/csv")
+                    df_export = df_sum.drop(columns=['❌ DELETE']) # Hide delete column in prints
+                    with c_f1: st.download_button("Download Summary (CSV)", data=generate_csv_with_header(df_export, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name), file_name=f"Followup_{fu_d}.csv", mime="text/csv")
                     with c_f2: 
-                        fu_pdf = generate_pdf(df_sum, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name)
+                        fu_pdf = generate_pdf(df_export, "ABSENTEE FOLLOW-UP SUMMARY", fu_d, my_cls, my_sec, incharge_name)
                         if fu_pdf: st.download_button("Download Summary (PDF)", data=fu_pdf, file_name=f"Followup_{fu_d}.pdf", mime="application/pdf")
             elif fu_r: st.success("No absentees!")
             else: st.warning("Attendance not marked.")
