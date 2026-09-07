@@ -18,18 +18,17 @@ st.set_page_config(page_title="Superior College Okara Portal", layout="wide", pa
 # ==========================================
 # FIREBASE DATABASE CONNECTION
 # ==========================================
-FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/" 
+FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/"
 
 if not firebase_admin._apps:
     try:
-        # راز (Secret) سے چابی پڑھنا
-        key_dict = json.loads(st.secrets["firebase_secret"])
+        key_dict = dict(st.secrets["firebase"])
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {
             'databaseURL': FIREBASE_URL
         })
     except Exception as e:
-        st.error(f"Firebase Connection Error: {e}")
+        st.error(f"🔥 Firebase Connection Failed! Check Streamlit Secrets. Error: {e}")
 
 def load_data(node_name, default_val=[]):
     try:
@@ -41,8 +40,10 @@ def load_data(node_name, default_val=[]):
 def save_data(node_name, data):
     try:
         db.reference(node_name).set(data)
+        return True # اگر کامیابی سے کلاؤڈ پر سیو ہو گیا
     except Exception as e:
-        st.error(f"Save Error: {e}")
+        st.error(f"🚨 Cloud Data Save Error: {e}")
+        return False # اگر فائر بیس نے ایرر دے دیا
 
 # ==========================================
 # SAFE CSS FOR PREMIUM LOOK
@@ -158,14 +159,11 @@ def get_section_options(cls_name, crs_name, br_name):
     return ["N/A"]
 
 # ==========================================
-# EXPORT GENERATORS (WITH UNICODE DEFENSE)
+# EXPORT GENERATORS
 # ==========================================
 def safe_pdf_str(text):
-    """Prevents UnicodeEncodeError in FPDF by replacing unsupported characters."""
-    try:
-        return str(text).encode('latin-1', 'replace').decode('latin-1')
-    except:
-        return ""
+    try: return str(text).encode('latin-1', 'replace').decode('latin-1')
+    except: return ""
 
 def generate_csv_with_header_utf8(df, title, meta_info=""):
     header = f'"SUPERIOR COLLEGE OKARA"\n"{title}"\n"{meta_info}"\n'
@@ -182,7 +180,6 @@ def generate_basic_pdf(df, title, meta_info=""):
         pdf.set_font("Arial", '', 10)
         if meta_info: pdf.cell(0, 6, safe_pdf_str(meta_info), 0, 1, 'C')
         pdf.ln(8)
-        
         col_widths = [15] + [(260) / len(df.columns)] * (len(df.columns) - 1)
         pdf.set_font("Arial", 'B', 8)
         for i, h in enumerate(df.columns): 
@@ -197,8 +194,7 @@ def generate_basic_pdf(df, title, meta_info=""):
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
         pdf.output(tmp.name)
         with open(tmp.name, "rb") as f: return f.read()
-    except:
-        return None
+    except: return None
 
 def generate_csv_with_header(df, title, date_str="", class_name="", section="", incharge=""):
     date_f = format_date_ddmmyyyy(date_str) if "-" in str(date_str) and len(str(date_str)) <= 10 else date_str
@@ -252,8 +248,7 @@ def generate_pdf(df, title, date_str="", class_name="", section="", incharge="")
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
         pdf.output(tmp.name)
         with open(tmp.name, "rb") as f: return f.read()
-    except:
-        return None
+    except: return None
 
 def draw_single_report_card(pdf, student_info, marks_df, totals):
     pdf.add_page()
@@ -324,8 +319,7 @@ def generate_bulk_report_cards(roll_nos, marks_list, class_name, course, branch,
         tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
         pdf.output(tmp_file.name)
         with open(tmp_file.name, "rb") as f: return f.read()
-    except:
-        return None
+    except: return None
 
 # ==========================================
 # MODULES (Syllabus, Report Cards, Setup, Tests)
@@ -357,9 +351,9 @@ def render_syllabus_tracker(user, is_admin=False):
                     }
                     st.session_state.syllabus_db = [s for s in st.session_state.syllabus_db if s['id'] != entry['id']]
                     st.session_state.syllabus_db.append(entry)
-                    save_data('syllabus_db', st.session_state.syllabus_db)
-                    st.success("Syllabus Added!")
-                    st.rerun()
+                    if save_data('syllabus_db', st.session_state.syllabus_db):
+                        st.success("Syllabus Added!")
+                        st.rerun()
         my_syl = [s for s in st.session_state.syllabus_db if s['teacher']==user['name'] and s['class_name']==c_cls and s['section']==c_sec and s['subject']==c_subj]
     else:
         st.markdown("#### Admin Syllabus View")
@@ -397,9 +391,9 @@ def render_syllabus_tracker(user, is_admin=False):
                     orig_id = df_syl.iloc[i]['ID']
                     for s in st.session_state.syllabus_db:
                         if s['id'] == orig_id: s['completed'] = row['COMPLETED']
-                save_data('syllabus_db', st.session_state.syllabus_db)
-                st.success("Progress Updated!")
-                st.rerun()
+                if save_data('syllabus_db', st.session_state.syllabus_db):
+                    st.success("Progress Updated!")
+                    st.rerun()
         else:
             teacher_name = my_syl[0]['teacher'] if my_syl else "Unknown"
             st.write(f"**Teacher:** {teacher_name}")
@@ -407,10 +401,8 @@ def render_syllabus_tracker(user, is_admin=False):
             
         st.divider()
         csv_data = generate_csv_with_header_utf8(df_syl.drop(columns=['ID']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
-        
         d1, d2 = st.columns(2)
-        d1.download_button("📥 Download Excel/CSV (اردو سپورٹ کے ساتھ)", data=csv_data, file_name="Syllabus.csv", mime="text/csv")
-        
+        d1.download_button("📥 Download Excel/CSV (اردو سپورٹ)", data=csv_data, file_name="Syllabus.csv", mime="text/csv")
         pdf_data = generate_basic_pdf(df_syl.drop(columns=['ID', 'COMPLETED']), "SYLLABUS BREAKUP", f"Progress: {prog_perc}%")
         if pdf_data:
             d2.download_button("📥 Download PDF (English Only)", data=pdf_data, file_name="Syllabus.pdf", mime="application/pdf")
@@ -559,9 +551,10 @@ def render_profile_setup(user):
                 for s in t_subjs:
                     assg = {"class_name": t_cls, "course": t_crs, "branch": t_br, "section": t_sec, "subject": s}
                     if assg not in user['teaching_assignments']: user['teaching_assignments'].append(assg)
-                update_user_in_db(user)
-                st.success("Profile Setup Complete! Redirecting...")
-                st.rerun()
+                if save_data('users_db', st.session_state.users_db):
+                    update_user_in_db(user)
+                    st.success("Profile Setup Complete! Redirecting...")
+                    st.rerun()
 
     if user.get('teaching_assignments'):
         st.markdown("#### Current Teaching Assignments")
@@ -570,8 +563,9 @@ def render_profile_setup(user):
         st.table(df_a)
         if st.button("Clear All Assignments (Reset)"):
             user['teaching_assignments'] = []
-            update_user_in_db(user)
-            st.rerun()
+            if save_data('users_db', st.session_state.users_db):
+                update_user_in_db(user)
+                st.rerun()
 
 def render_test_and_marks_module(user):
     assignments = user.get('teaching_assignments', [])
@@ -606,8 +600,8 @@ def render_test_and_marks_module(user):
                             "date": str(t_date), "day": t_date.strftime('%A'), "total_marks": t_marks, "teacher": user['name']
                         }
                         st.session_state.tests_db.append(test_data)
-                        save_data('tests_db', st.session_state.tests_db)
-                        msg_c.success("Test Created Successfully!")
+                        if save_data('tests_db', st.session_state.tests_db):
+                            msg_c.success("Test Created Successfully!")
 
     with tab_marks:
         msg_m = st.empty()
@@ -647,8 +641,8 @@ def render_test_and_marks_module(user):
                                         "roll_no": md['roll_no'], "student_name": md['name'], "total_marks": sel_test['total_marks'], 
                                         "obtained_marks": md['obtained'], "percentage": round(perc, 2), "teacher": user['name']
                                     })
-                                save_data('marks_db', st.session_state.marks_db)
-                                msg_m.success("Marks saved!")
+                                if save_data('marks_db', st.session_state.marks_db):
+                                    msg_m.success("Marks saved!")
             else: msg_m.warning("No students in this section.")
         else: msg_m.info("No tests created yet.")
 
@@ -719,11 +713,14 @@ if not st.session_state.logged_in:
                         else:
                             user = {"name": r_name, "username": r_usr, "password": r_pwd, "role": role, "profile_setup": True}
                             st.session_state.users_db.append(user)
-                            save_data('users_db', st.session_state.users_db)
                             
-                            msg_reg.success(f"✔️ {role} Registered Successfully! Redirecting to Login...")
-                            time.sleep(2)
-                            st.rerun() 
+                            # Safe Cloud Saving Logic
+                            if save_data('users_db', st.session_state.users_db):
+                                msg_reg.success(f"✔️ {role} Registered Successfully! Redirecting to Login...")
+                                time.sleep(2)
+                                st.rerun() 
+                            else:
+                                st.session_state.users_db.pop() # Remove from RAM if cloud fails
             st.markdown('</div>', unsafe_allow_html=True)
 
 else:
@@ -784,15 +781,15 @@ else:
                         if not new_name or not new_usr or not new_pwd: st.error("Fill all fields.")
                         else:
                             st.session_state.users_db.append({"name": new_name, "username": new_usr, "password": new_pwd, "role": new_role, "profile_setup": False})
-                            save_data('users_db', st.session_state.users_db)
-                            st.success("User created!")
-                            st.rerun()
+                            if save_data('users_db', st.session_state.users_db):
+                                st.success("User created!")
+                                st.rerun()
             st.markdown("#### Edit Existing Users")
             edited_u = st.data_editor(pd.DataFrame(st.session_state.users_db), num_rows="dynamic", use_container_width=True)
             if st.button("Save User Changes"):
                 st.session_state.users_db = edited_u.to_dict('records')
-                save_data('users_db', st.session_state.users_db)
-                st.success("Updated!")
+                if save_data('users_db', st.session_state.users_db):
+                    st.success("Updated!")
 
         with t_stu:
             st.subheader("Student Database (Edit / Delete / Promote)")
@@ -800,8 +797,8 @@ else:
                 edited_stu = st.data_editor(pd.DataFrame(st.session_state.students_db), num_rows="dynamic", use_container_width=True)
                 if st.button("Save Student Changes"):
                     st.session_state.students_db = edited_stu.to_dict('records')
-                    save_data('students_db', st.session_state.students_db)
-                    st.success("Updated!")
+                    if save_data('students_db', st.session_state.students_db):
+                        st.success("Updated!")
             else: st.info("No students registered.")
 
         with t_str:
@@ -814,8 +811,8 @@ else:
                     ed_set = st.data_editor(pd.DataFrame({k: st.session_state.settings_db[k]}), num_rows="dynamic", key=f"set_{k}")
                     st.session_state.settings_db[k] = ed_set[k].dropna().tolist()
             if st.button("Save Structure Changes"):
-                save_data('settings_db', st.session_state.settings_db)
-                st.success("Structure Updated!")
+                if save_data('settings_db', st.session_state.settings_db):
+                    st.success("Structure Updated!")
 
         with t_teach:
             render_profile_setup(user)
@@ -841,7 +838,7 @@ else:
                 rep_data = []
                 for a in [r for r in st.session_state.attendance_db if r['date'] == str(rep_date)]:
                     for roll in a.get('absent_students', []):
-                        s = next((st for st in st.session_state.students_db if str(st['roll_no'])==str(roll) and st.get('class_name')==a['class_name']), None)
+                        s = next((st for st in st.session_state.students_db if str(s['roll_no'])==str(roll) and st.get('class_name')==a['class_name']), None)
                         if s:
                             fu = next((f for f in st.session_state.followup_db if f['date']==str(rep_date) and str(f['roll_no'])==str(roll)), {})
                             inc = get_class_incharge(a['class_name'], a['course'], a['branch'], a['section'])
@@ -1033,9 +1030,9 @@ else:
                     if st.form_submit_button("Add Student"):
                         if s_n and s_r:
                             st.session_state.students_db.append({"class_name": my_cls, "course": my_crs, "branch": my_br, "section": my_sec, "name": s_n, "father_name": s_f, "roll_no": s_r, "contact1": s_c1, "contact2": s_c2, "transport": "Yes" if s_tr else "No"})
-                            save_data('students_db', st.session_state.students_db)
-                            msg_reg.success(f"{s_n.upper()} Added!")
-                            st.rerun()
+                            if save_data('students_db', st.session_state.students_db):
+                                msg_reg.success(f"{s_n.upper()} Added!")
+                                st.rerun()
                         else: msg_reg.error("Name and Roll required.")
             
             st.markdown("#### Edit Class Students")
@@ -1045,8 +1042,8 @@ else:
                 if st.button("Save Edits"):
                     st.session_state.students_db = [s for s in st.session_state.students_db if not (s.get('class_name')==my_cls and s.get('section')==my_sec and s.get('branch')==my_br)]
                     st.session_state.students_db.extend(ed_my.to_dict('records'))
-                    save_data('students_db', st.session_state.students_db)
-                    st.success("Changes saved!")
+                    if save_data('students_db', st.session_state.students_db):
+                        st.success("Changes saved!")
                 
                 df_dl = pd.DataFrame(my_st).rename(columns={'name': 'NAME', 'father_name': 'FATHER NAME', 'roll_no': 'ROLL NO', 'contact1': 'CONTACT', 'transport': 'TRANSPORT'})
                 display_dl = df_dl[['ROLL NO', 'NAME', 'FATHER NAME', 'CONTACT', 'TRANSPORT']]
@@ -1076,9 +1073,9 @@ else:
                             if st.checkbox(f"{s['roll_no']} - {s['name'].upper()}", key=f"att_{s['roll_no']}"): abs_rolls.append(s['roll_no'])
                         if st.form_submit_button("Save Attendance", use_container_width=True):
                             st.session_state.attendance_db.append({"date": str(att_d), "class_name": my_cls, "course": my_crs, "section": my_sec, "branch": my_br, "absent_students": abs_rolls})
-                            save_data('attendance_db', st.session_state.attendance_db)
-                            msg_att.success("Attendance saved successfully!")
-                            st.rerun()
+                            if save_data('attendance_db', st.session_state.attendance_db):
+                                msg_att.success("Attendance saved successfully!")
+                                st.rerun()
             st.divider()
             st.subheader("Absentee Follow-up")
             msg_follow = st.empty()
@@ -1099,8 +1096,8 @@ else:
                                     rsn = st.text_area("Reason")
                                     if st.form_submit_button("Save"):
                                         st.session_state.followup_db.append({"date": str(fu_d), "class_name": my_cls, "section": my_sec, "branch": my_br, "roll_no": roll, "spoke_to": spoke, "reason": rsn})
-                                        save_data('followup_db', st.session_state.followup_db)
-                                        msg_follow.success("Done!")
+                                        if save_data('followup_db', st.session_state.followup_db):
+                                            msg_follow.success("Done!")
                 
                 st.markdown("#### Today's Follow-up Summary")
                 sum_d = []
