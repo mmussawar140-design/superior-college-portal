@@ -16,24 +16,26 @@ from firebase_admin import db
 st.set_page_config(page_title="Superior College Okara Portal", layout="wide", page_icon="image_500c0a.png")
 
 # ==========================================
-# FIREBASE DATABASE CONNECTION (100% FIXED)
+# FIREBASE DATABASE CONNECTION (MEMORY FLUSH FIX)
 # ==========================================
 FIREBASE_URL = "https://superior-college-okara-9efbc-default-rtdb.firebaseio.com/"
 
-if not firebase_admin._apps:
-    try:
-        # Secrets سے JSON چابی پڑھنا
-        key_dict = json.loads(st.secrets["firebase_secret"])
-        
-        # 💡 سب سے اہم لائن: فائر بیس کی چابی میں موجود \n کو اصل نئی لائن میں تبدیل کرنا
-        key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
-        
-        cred = credentials.Certificate(key_dict)
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': FIREBASE_URL
-        })
-    except Exception as e:
-        st.error(f"🔥 Firebase Connection Failed! Check Streamlit Secrets. Error: {e}")
+try:
+    # 💡 1. سب سے اہم کام: Streamlit کی پرانی اور خراب میموری کو زبردستی ڈیلیٹ کریں
+    if firebase_admin._apps:
+        for app_name in list(firebase_admin._apps.keys()):
+            firebase_admin.delete_app(firebase_admin.get_app(app_name))
+
+    # 💡 2. اب بالکل نئی اور صاف چابی Secrets سے لوڈ کریں
+    key_dict = json.loads(st.secrets["firebase_secret"])
+    key_dict["private_key"] = key_dict["private_key"].replace("\\n", "\n")
+    
+    cred = credentials.Certificate(key_dict)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': FIREBASE_URL
+    })
+except Exception as e:
+    st.error(f"🔥 Firebase Connection Failed! Check Streamlit Secrets. Error: {e}")
 
 def load_data(node_name, default_val=[]):
     try:
