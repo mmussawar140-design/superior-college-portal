@@ -488,6 +488,8 @@ def render_report_card_module(marks_list, class_name, course, branch, section):
             c_d2.write(f"**CLASS INCHARGE:** {incharge_name.upper()}")
             
             df_ind = pd.DataFrame(st_marks)
+            if 'percentage' in df_ind.columns:
+                df_ind = df_ind.drop(columns=['percentage'])
             df_ind.rename(columns={'subject': 'SUBJECT', 'teacher': 'TEACHER', 'total_marks': 'TOTAL MARKS', 'obtained_marks': 'OBTAINED MARKS'}, inplace=True)
             df_ind['SUBJECT'] = df_ind['SUBJECT'].str.upper()
             df_ind['TEACHER'] = df_ind['TEACHER'].str.upper()
